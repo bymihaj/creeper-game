@@ -8,8 +8,8 @@
 **Response time:** 156s <br>
 **Line of code:** 415 <br>
 
-[Code](https://raw.github.com/bymihaj/creeper-game/2026-03-03/gemini-3-1-pro-preview.html)<br>
-[Play](https://github.com/bymihaj/creeper-game/2026-03-03/gemini-3-1-pro-preview.html)<br>
+[Code](https://github.com/bymihaj/creeper-game/blob/main/2026-03-02/gemini-3-1-pro-preview.html)<br>
+[Play](https://bymihaj.github.io/creeper-game/2026-03-02/gemini-3-1-pro-preview.html)<br>
 [Shared chat](https://aistudio.google.com/app/prompts?state=%7B%22ids%22:%5B%221yecSvy4j1VD9D85gV7BmKlGKOMk0dirN%22%5D,%22action%22:%22open%22,%22userId%22:%22108144930519945800031%22,%22resourceKeys%22:%7B%7D%7D&usp=sharing)
 
 **Game review:**
