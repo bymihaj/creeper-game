@@ -1,0 +1,1 @@
+Generate simple video game like Creeper World. Use HTML and js. All generated content should be inside one html file.
