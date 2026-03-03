@@ -1,0 +1,734 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>CREEP WARS</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+  background:#040910;
+  color:#8bc;
+  font-family:'Courier New',monospace;
+  display:flex; flex-direction:column; align-items:center;
+  height:100vh; overflow:hidden; user-select:none;
+}
+#header {
+  display:flex; align-items:center; justify-content:space-between;
+  width:100%; padding:5px 16px;
+  background:linear-gradient(#071220,#060f1c);
+  border-bottom:1px solid #1a3a5a;
+  flex-shrink:0;
+}
+#logo { font-size:16px; letter-spacing:6px; color:#3cf; text-shadow:0 0 14px #3cf8; font-weight:bold; }
+#stats { display:flex; gap:22px; font-size:12px; }
+.stat { color:#5af; }
+.stat b { color:#dff; font-weight:normal; }
+#gameWrap {
+  position:relative; flex:1; display:flex;
+  align-items:center; justify-content:center; overflow:hidden;
+}
+canvas { display:block; image-rendering:pixelated; cursor:crosshair; }
+#toolbar {
+  display:flex; gap:6px; padding:6px 14px; align-items:center;
+  background:linear-gradient(#060f1c,#071220);
+  border-top:1px solid #1a3a5a;
+  width:100%; flex-shrink:0; flex-wrap:wrap;
+}
+.tb-label { color:#4af; font-size:10px; letter-spacing:2px; margin-right:4px; }
+.tbtn {
+  padding:5px 10px; font-family:'Courier New',monospace; font-size:11px;
+  background:#071828; border:1px solid #1a4060; color:#7bc;
+  cursor:pointer; letter-spacing:1px; transition:all .12s; white-space:nowrap;
+}
+.tbtn:hover { background:#0d2a40; border-color:#3af; color:#cef; }
+.tbtn.on { background:#082840; border-color:#3cf; color:#3cf; box-shadow:0 0 8px #3cf4; }
+.tbtn.err { border-color:#f55 !important; }
+#tip {
+  position:fixed; background:#060f1cee; border:1px solid #3af;
+  padding:5px 9px; font-size:11px; color:#adf; pointer-events:none;
+  z-index:50; display:none; line-height:1.6; min-width:120px;
+}
+#overlay {
+  position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
+  background:#040910f0; border:2px solid #3cf;
+  padding:28px 50px; text-align:center; display:none; z-index:30;
+  box-shadow:0 0 40px #3cf5;
+}
+#overlay h2 { font-size:26px; color:#3cf; letter-spacing:6px; margin-bottom:12px; }
+#overlay p  { color:#9cf; margin-bottom:18px; font-size:13px; }
+#overlay button {
+  padding:8px 24px; background:#071828; border:1px solid #3cf; color:#3cf;
+  cursor:pointer; font-family:inherit; font-size:13px; letter-spacing:3px;
+}
+#overlay button:hover { background:#0d2a40; }
+#hint { font-size:10px; color:#3af8; margin-left:auto; font-style:italic; }
+</style>
+</head>
+<body>
+
+<div id="header">
+  <div id="logo">▸ CREEP WARS</div>
+  <div id="stats">
+    <div class="stat">⚡ ENERGY <b id="eVal">100</b></div>
+    <div class="stat">📈 RATE <b id="rVal">+0</b>/s</div>
+    <div class="stat">☠ EMITTERS <b id="emVal">5</b></div>
+    <div class="stat">🕐 WAVE <b id="wVal">1</b></div>
+  </div>
+</div>
+
+<div id="gameWrap">
+  <canvas id="gc"></canvas>
+  <div id="tip"></div>
+  <div id="overlay">
+    <h2 id="ovTitle">VICTORY</h2>
+    <p id="ovBody">All creeper emitters neutralized!</p>
+    <button onclick="restart()">▸ PLAY AGAIN</button>
+  </div>
+</div>
+
+<div id="toolbar">
+  <span class="tb-label">BUILD</span>
+  <button class="tbtn on"  id="btn-none"      onclick="sel('none')">CURSOR [ESC]</button>
+  <button class="tbtn"     id="btn-collector" onclick="sel('collector')">COLLECTOR [C] 25⚡</button>
+  <button class="tbtn"     id="btn-relay"     onclick="sel('relay')">RELAY [R] 15⚡</button>
+  <button class="tbtn"     id="btn-blaster"   onclick="sel('blaster')">BLASTER [B] 50⚡</button>
+  <button class="tbtn"     id="btn-mortar"    onclick="sel('mortar')">MORTAR [T] 75⚡</button>
+  <button class="tbtn"     id="btn-mine"      onclick="sel('mine')">MINE [N] 35⚡</button>
+  <span style="margin-left:auto"></span>
+  <span class="tb-label">SPEED</span>
+  <button class="tbtn on" id="sp1" onclick="setSpd(1)">1×</button>
+  <button class="tbtn"    id="sp2" onclick="setSpd(2)">2×</button>
+  <button class="tbtn"    id="sp3" onclick="setSpd(3)">3×</button>
+  <div id="hint">Right-click structure to demolish</div>
+</div>
+
+<script>
+// ─── CONFIG ──────────────────────────────────────────────
+const TILE = 16;
+const GW = 60, GH = 36;
+const canvas = document.getElementById('gc');
+const ctx    = canvas.getContext('2d');
+canvas.width  = GW * TILE;   // 960
+canvas.height = GH * TILE;   // 576
+
+// ─── STATE ───────────────────────────────────────────────
+let energy=100, tick=0, spd=1, tool='none', dead=false;
+let terrain=[], creep=[], ac=[];   // 2D arrays [y][x]
+let structs={};   // "x,y" → obj
+let emitters=[];
+let pads=[];      // collector resource pads
+let projs=[];
+let network=new Set();
+let mX=-1, mY=-1;
+let incomeRate=0, incomeAcc=0;
+let waveNum=1, waveTimer=0;
+
+// ─── DEFINITIONS ─────────────────────────────────────────
+const DEFS = {
+  cn:        {name:'Command Node', icon:'⬡', col:'#00ff99', cost:0,  range:7,  hp:200},
+  collector: {name:'Collector',    icon:'◆', col:'#ffcc00', cost:25, range:4,  hp:80,  energyRate:5},
+  relay:     {name:'Relay',        icon:'●', col:'#66aaff', cost:15, range:5,  hp:60},
+  blaster:   {name:'Blaster',      icon:'▲', col:'#ff7755', cost:50, range:7,  hp:100, fireRate:55, dmg:9,  projSpd:10},
+  mortar:    {name:'Mortar',       icon:'◉', col:'#ffaa00', cost:75, range:11, hp:120, fireRate:110,dmg:18, projSpd:6,  aoe:2.5},
+  mine:      {name:'Mine Field',   icon:'✦', col:'#ff44bb', cost:35, range:2,  hp:80,  fireRate:25, dmg:1.2,pulse:true},
+};
+
+// ─── NOISE ───────────────────────────────────────────────
+function fade(t){return t*t*t*(t*(t*6-15)+10)}
+function lerp(a,b,t){return a+t*(b-a)}
+function grad2(h,x,y){h&=7;let u=h<4?x:y,v=h<4?y:x;return((h&1)?-u:u)+((h&2)?-v:v)}
+let perm=(()=>{let p=[];for(let i=0;i<256;i++)p[i]=i;for(let i=255;i>0;i--){let j=Math.floor(Math.random()*(i+1));[p[i],p[j]]=[p[j],p[i]];}return p.concat(p)})();
+function perlin(x,y){
+  let xi=Math.floor(x)&255,yi=Math.floor(y)&255;
+  let xf=x-Math.floor(x),yf=y-Math.floor(y);
+  let u=fade(xf),v=fade(yf);
+  let aa=perm[perm[xi]+yi],ab=perm[perm[xi]+yi+1];
+  let ba=perm[perm[xi+1]+yi],bb=perm[perm[xi+1]+yi+1];
+  return lerp(lerp(grad2(aa,xf,yf),grad2(ba,xf-1,yf),u),
+              lerp(grad2(ab,xf,yf-1),grad2(bb,xf-1,yf-1),u),v);
+}
+function fbm(x,y,oct=4){let v=0,a=1,f=1,mx=0;for(let i=0;i<oct;i++){v+=perlin(x*f,y*f)*a;mx+=a;a*=0.5;f*=2;}return v/mx;}
+
+// ─── MAP GEN ─────────────────────────────────────────────
+function genMap(){
+  terrain=[]; creep=[]; ac=[];
+  for(let y=0;y<GH;y++){
+    terrain[y]=[]; creep[y]=[]; ac[y]=[];
+    for(let x=0;x<GW;x++){
+      let h = fbm(x*0.07,y*0.07)*5 + fbm(x*0.13,y*0.13)*2 + 4;
+      terrain[y][x] = Math.max(0,Math.min(9,Math.round(h)));
+      creep[y][x]=0; ac[y][x]=0;
+    }
+  }
+  // Border walls
+  for(let x=0;x<GW;x++){terrain[0][x]=9;terrain[GH-1][x]=9;}
+  for(let y=0;y<GH;y++){terrain[y][0]=9;terrain[y][GW-1]=9;}
+
+  // Player start – flat elevated plateau top-left
+  for(let y=2;y<=9;y++) for(let x=2;x<=14;x++) terrain[y][x]=5;
+
+  // Emitter positions (enemy)
+  emitters=[];
+  let epts=[[53,30],[50,5],[GW/2|0,GH/2|0],[45,20],[30,30]];
+  for(let [ex,ey] of epts){
+    terrain[ey][ex]=2;
+    // crater around emitter
+    for(let dy=-3;dy<=3;dy++) for(let dx=-3;dx<=3;dx++){
+      let tx=ex+dx,ty=ey+dy;
+      if(inB(tx,ty)&&Math.sqrt(dx*dx+dy*dy)<=3) terrain[ty][tx]=Math.max(0,terrain[ty][tx]-2);
+    }
+    // seed creeper
+    for(let dy=-4;dy<=4;dy++) for(let dx=-4;dx<=4;dx++){
+      let tx=ex+dx,ty=ey+dy;
+      if(inB(tx,ty)&&Math.sqrt(dx*dx+dy*dy)<=4) creep[ty][tx]=4;
+    }
+    emitters.push({x:ex,y:ey,hp:120,alive:true});
+  }
+
+  // Resource pads
+  pads=[[5,3],[8,6],[11,4],[18,8],[22,15],[14,20],[35,12],[28,25],[40,6]];
+
+  document.getElementById('emVal').textContent=emitters.length;
+}
+
+function inB(x,y){return x>=0&&x<GW&&y>=0&&y<GH;}
+
+// ─── STRUCT PLACEMENT ────────────────────────────────────
+function placeStruct(x,y,type){
+  if(!inB(x,y)) return false;
+  let key=`${x},${y}`;
+  if(structs[key]) return false;
+  if(terrain[y][x]<1||terrain[y][x]>=9) return false;
+  if(creep[y][x]>0.4) return false;
+  let def=DEFS[type];
+  if(type!=='cn'){
+    if(def.cost>energy) return false;
+    if(!nearNetwork(x,y)) return false;
+    energy-=def.cost;
+  }
+  structs[key]={x,y,type,hp:def.hp,timer:0,dead:false};
+  rebuildNet();
+  updateHUD();
+  return true;
+}
+
+function nearNetwork(x,y){
+  for(let k of network){
+    let s=structs[k]; if(!s) continue;
+    let r=DEFS[s.type].range;
+    let [nx,ny]=k.split(',').map(Number);
+    if(dist(x,y,nx,ny)<=r) return true;
+  }
+  return false;
+}
+
+function rebuildNet(){
+  network.clear();
+  let cn=Object.values(structs).find(s=>s.type==='cn');
+  if(!cn) return;
+  let q=[`${cn.x},${cn.y}`]; network.add(q[0]);
+  while(q.length){
+    let cur=q.shift();
+    let [cx,cy]=cur.split(',').map(Number);
+    let cr=DEFS[structs[cur].type].range;
+    for(let k in structs){
+      if(network.has(k)) continue;
+      let [sx,sy]=k.split(',').map(Number);
+      if(dist(cx,cy,sx,sy)<=cr){network.add(k);q.push(k);}
+    }
+  }
+}
+
+function dist(ax,ay,bx,by){return Math.sqrt((ax-bx)**2+(ay-by)**2);}
+
+// ─── MAIN LOOP ───────────────────────────────────────────
+let lastT=0, accT=0;
+const TICK=50;
+
+function loop(ts){
+  if(dead){render();return;}
+  let dt=Math.min(ts-lastT,100); lastT=ts;
+  accT+=dt*spd;
+  while(accT>=TICK){update();accT-=TICK;}
+  render();
+  requestAnimationFrame(loop);
+}
+
+function update(){
+  tick++;
+  waveTimer++;
+  if(waveTimer>1200){waveNum++;waveTimer=0;document.getElementById('wVal').textContent=waveNum;}
+
+  // Emit creeper
+  if(tick%8===0){
+    for(let em of emitters){
+      if(!em.alive) continue;
+      creep[em.y][em.x]+=2+waveNum*0.3;
+    }
+  }
+
+  // Flow creeper
+  flowCreep();
+
+  // Energy income
+  if(tick%20===0){
+    let inc=0;
+    for(let k in structs){
+      if(!network.has(k)) continue;
+      let s=structs[k],def=DEFS[s.type];
+      if(s.type==='cn') inc+=2;
+      if(s.type==='collector'){
+        let onPad=pads.some(p=>p[0]===s.x&&p[1]===s.y);
+        inc+=onPad?def.energyRate+3:def.energyRate;
+      }
+    }
+    energy+=inc;
+    incomeRate=Math.round(inc*(1000/TICK/20));
+    document.getElementById('rVal').textContent='+'+incomeRate;
+    document.getElementById('eVal').textContent=Math.floor(energy);
+  }
+
+  // Weapons
+  for(let k in structs){
+    if(!network.has(k)) continue;
+    let s=structs[k]; if(s.dead) continue;
+    if(s.type==='blaster'){
+      s.timer++;
+      if(s.timer>=DEFS.blaster.fireRate){
+        s.timer=0;
+        let t=nearestCreep(s.x,s.y,DEFS.blaster.range);
+        if(t) projs.push({x:s.x*TILE+8,y:s.y*TILE+8,tx:t.x*TILE+8,ty:t.y*TILE+8,gx:t.x,gy:t.y,spd:10,dmg:DEFS.blaster.dmg,type:'blaster'});
+      }
+    }
+    if(s.type==='mortar'){
+      s.timer++;
+      if(s.timer>=DEFS.mortar.fireRate){
+        s.timer=0;
+        let t=heaviestCreep(s.x,s.y,DEFS.mortar.range);
+        if(t) projs.push({x:s.x*TILE+8,y:s.y*TILE+8,tx:t.x*TILE+8,ty:t.y*TILE+8,gx:t.x,gy:t.y,spd:6,dmg:DEFS.mortar.dmg,type:'mortar',aoe:DEFS.mortar.aoe});
+      }
+    }
+    if(s.type==='mine'){
+      s.timer++;
+      if(s.timer>=DEFS.mine.fireRate){
+        s.timer=0;
+        for(let dy=-1;dy<=1;dy++) for(let dx=-1;dx<=1;dx++){
+          let nx=s.x+dx,ny=s.y+dy;
+          if(inB(nx,ny)){creep[ny][nx]=Math.max(0,creep[ny][nx]-DEFS.mine.dmg);ac[ny][nx]+=0.15;}
+        }
+      }
+    }
+  }
+
+  // Projectiles
+  for(let i=projs.length-1;i>=0;i--){
+    let p=projs[i];
+    let dx=p.tx-p.x,dy=p.ty-p.y,d=Math.sqrt(dx*dx+dy*dy);
+    if(d<p.spd){
+      // Impact
+      if(p.type==='mortar'){
+        for(let dy2=-Math.ceil(p.aoe);dy2<=Math.ceil(p.aoe);dy2++){
+          for(let dx2=-Math.ceil(p.aoe);dx2<=Math.ceil(p.aoe);dx2++){
+            let nx=p.gx+dx2,ny=p.gy+dy2;
+            if(!inB(nx,ny)) continue;
+            let dd=Math.sqrt(dx2*dx2+dy2*dy2);
+            if(dd<=p.aoe){
+              let dmg=p.dmg*(1-dd/p.aoe*0.6);
+              creep[ny][nx]=Math.max(0,creep[ny][nx]-dmg);
+              ac[ny][nx]+=dmg*0.25;
+            }
+          }
+        }
+        for(let em of emitters){if(!em.alive) continue;if(dist(em.x,em.y,p.gx,p.gy)<=p.aoe){em.hp-=p.dmg*0.5;if(em.hp<=0)em.alive=false;}}
+      } else {
+        creep[p.gy][p.gx]=Math.max(0,creep[p.gy][p.gx]-p.dmg);
+        ac[p.gy][p.gx]+=p.dmg*0.4;
+        for(let em of emitters){if(!em.alive) continue;if(em.x===p.gx&&em.y===p.gy){em.hp-=p.dmg;if(em.hp<=0)em.alive=false;}}
+      }
+      projs.splice(i,1);
+    } else {
+      p.x+=dx/d*p.spd; p.y+=dy/d*p.spd;
+    }
+  }
+
+  // Creeper damages structures
+  if(tick%5===0){
+    for(let k in structs){
+      let s=structs[k];
+      let c=creep[s.y][s.x];
+      if(c>1.5){s.hp-=c*0.4;if(s.hp<=0){delete structs[k];rebuildNet();}}
+    }
+  }
+
+  // Win/Lose
+  if(tick%40===0){
+    let alive=emitters.filter(e=>e.alive).length;
+    document.getElementById('emVal').textContent=alive;
+    if(alive===0) endGame(true);
+    let hasCN=Object.values(structs).some(s=>s.type==='cn');
+    if(!hasCN) endGame(false);
+  }
+}
+
+function flowCreep(){
+  const nCreep=[];
+  for(let y=0;y<GH;y++) nCreep[y]=[...creep[y]];
+  const dirs=[[0,1],[1,0],[0,-1],[-1,0]];
+  for(let y=1;y<GH-1;y++){
+    for(let x=1;x<GW-1;x++){
+      let c=creep[y][x]; if(c<0.02) continue;
+      let h=terrain[y][x]; if(h>=9) continue;
+      let eH=h+c;
+      for(let [dx,dy] of dirs){
+        let nx=x+dx,ny=y+dy;
+        if(!inB(nx,ny)) continue;
+        let nh=terrain[ny][nx]; if(nh>=9) continue;
+        let nc=creep[ny][nx];
+        let nEH=nh+nc;
+        if(eH>nEH+0.08){
+          let flow=Math.min((eH-nEH)*0.13, c*0.22, 2);
+          flow=Math.max(0,flow);
+          nCreep[y][x]-=flow; nCreep[ny][nx]+=flow;
+        }
+      }
+    }
+  }
+  // AC fights creep
+  for(let y=0;y<GH;y++){
+    for(let x=0;x<GW;x++){
+      creep[y][x]=Math.max(0,Math.min(18,nCreep[y][x]));
+      if(ac[y][x]>0){
+        let f=Math.min(ac[y][x],creep[y][x]);
+        ac[y][x]-=f; creep[y][x]-=f;
+        ac[y][x]*=0.94;
+        if(ac[y][x]<0.01) ac[y][x]=0;
+      }
+    }
+  }
+}
+
+function nearestCreep(sx,sy,range){
+  let best=null,bd=Infinity;
+  for(let dy=-range;dy<=range;dy++) for(let dx=-range;dx<=range;dx++){
+    let nx=sx+dx,ny=sy+dy; if(!inB(nx,ny)) continue;
+    let d=Math.sqrt(dx*dx+dy*dy); if(d>range) continue;
+    if(creep[ny][nx]>0.4&&d<bd){bd=d;best={x:nx,y:ny};}
+  }
+  return best;
+}
+function heaviestCreep(sx,sy,range){
+  let best=null,bv=0.4;
+  for(let dy=-range;dy<=range;dy++) for(let dx=-range;dx<=range;dx++){
+    let nx=sx+dx,ny=sy+dy; if(!inB(nx,ny)) continue;
+    if(Math.sqrt(dx*dx+dy*dy)>range) continue;
+    if(creep[ny][nx]>bv){bv=creep[ny][nx];best={x:nx,y:ny};}
+  }
+  return best;
+}
+
+// ─── RENDER ──────────────────────────────────────────────
+// Terrain palette
+const T_PAL=[
+  '#03070e','#060e18','#0a1525','#0d1e35',
+  '#102540','#142d4a','#193555','#1e3d60',
+  '#243f62','#1a2a40'
+];
+
+function render(){
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+
+  // Terrain
+  for(let y=0;y<GH;y++){
+    for(let x=0;x<GW;x++){
+      let h=terrain[y][x];
+      ctx.fillStyle=T_PAL[Math.min(h,T_PAL.length-1)];
+      ctx.fillRect(x*TILE,y*TILE,TILE,TILE);
+    }
+  }
+
+  // Grid (subtle)
+  ctx.strokeStyle='rgba(255,255,255,0.025)';
+  ctx.lineWidth=0.5;
+  for(let x=0;x<=GW;x++){ctx.beginPath();ctx.moveTo(x*TILE,0);ctx.lineTo(x*TILE,canvas.height);ctx.stroke();}
+  for(let y=0;y<=GH;y++){ctx.beginPath();ctx.moveTo(0,y*TILE);ctx.lineTo(canvas.width,y*TILE);ctx.stroke();}
+
+  // Resource pads
+  for(let [px,py] of pads){
+    let occupied=structs[`${px},${py}`];
+    ctx.fillStyle=occupied?'#1a1000':'#150e00';
+    ctx.fillRect(px*TILE,py*TILE,TILE,TILE);
+    ctx.strokeStyle=occupied?'#cc9900':'#886600';
+    ctx.lineWidth=1; ctx.strokeRect(px*TILE+1,py*TILE+1,TILE-2,TILE-2);
+    if(!occupied){
+      ctx.fillStyle='#ffcc4488';
+      ctx.font='9px monospace'; ctx.textAlign='center';
+      ctx.fillText('◆',px*TILE+8,py*TILE+11);
+    }
+  }
+
+  // Network range rings
+  for(let k of network){
+    let s=structs[k]; if(!s) continue;
+    let r=DEFS[s.type].range;
+    ctx.beginPath();
+    ctx.arc(s.x*TILE+8,s.y*TILE+8,r*TILE,0,Math.PI*2);
+    ctx.strokeStyle='rgba(80,160,255,0.05)'; ctx.lineWidth=1; ctx.stroke();
+  }
+  // Network lines
+  let netArr=[...network];
+  ctx.strokeStyle='rgba(60,140,255,0.1)'; ctx.lineWidth=0.5;
+  for(let i=0;i<netArr.length;i++){
+    for(let j=i+1;j<netArr.length;j++){
+      let [ax,ay]=netArr[i].split(',').map(Number);
+      let [bx,by]=netArr[j].split(',').map(Number);
+      let d=dist(ax,ay,bx,by);
+      let ra=DEFS[structs[netArr[i]].type].range;
+      if(d<=ra){ctx.beginPath();ctx.moveTo(ax*TILE+8,ay*TILE+8);ctx.lineTo(bx*TILE+8,by*TILE+8);ctx.stroke();}
+    }
+  }
+
+  // Creeper
+  for(let y=0;y<GH;y++){
+    for(let x=0;x<GW;x++){
+      let c=creep[y][x]; if(c<0.05) continue;
+      let t=Math.min(1,c/8);
+      let alpha=0.3+t*0.6;
+      let r=Math.floor(10+t*40),g=Math.floor(100+t*100),b=Math.floor(200+t*55);
+      ctx.fillStyle=`rgba(${r},${g},${b},${alpha})`;
+      let fill=Math.min(1,c/6);
+      let py2=y*TILE+TILE*(1-fill);
+      ctx.fillRect(x*TILE,py2,TILE,TILE-(py2-y*TILE)+1);
+      if(c>5){
+        ctx.fillStyle=`rgba(120,210,255,${Math.min(0.5,(c-5)/10)})`;
+        ctx.fillRect(x*TILE,y*TILE,TILE,TILE);
+      }
+    }
+  }
+
+  // Anti-creeper
+  for(let y=0;y<GH;y++){
+    for(let x=0;x<GW;x++){
+      let a=ac[y][x]; if(a<0.05) continue;
+      ctx.fillStyle=`rgba(0,255,120,${Math.min(0.65,a/4)})`;
+      ctx.fillRect(x*TILE,y*TILE,TILE,TILE);
+    }
+  }
+
+  // Structures
+  for(let k in structs){
+    let s=structs[k],def=DEFS[s.type];
+    let inNet=network.has(k);
+    let px=s.x*TILE,py=s.y*TILE;
+    let col=inNet?def.col:'#33445566';
+
+    // Background tile
+    ctx.fillStyle=inNet?`${def.col}22`:'#0a1520';
+    ctx.fillRect(px,py,TILE,TILE);
+
+    // Border with glow
+    if(inNet){ctx.shadowColor=def.col;ctx.shadowBlur=6;}
+    ctx.strokeStyle=col; ctx.lineWidth=inNet?1.5:1;
+    ctx.strokeRect(px+0.5,py+0.5,TILE-1,TILE-1);
+    ctx.shadowBlur=0;
+
+    // Icon
+    ctx.fillStyle=inNet?'#fff':'#556677';
+    ctx.font=`${TILE-4}px monospace`;
+    ctx.textAlign='center';
+    ctx.fillText(def.icon,px+8,py+TILE-3);
+
+    // HP bar
+    if(s.hp<def.hp){
+      let hw=(s.hp/def.hp)*(TILE-2);
+      ctx.fillStyle=s.hp/def.hp>0.5?'#0f0':'#f80';
+      ctx.fillRect(px+1,py-2,hw,2);
+      ctx.fillStyle='#ffffff22'; ctx.fillRect(px+1+hw,py-2,TILE-2-hw,2);
+    }
+
+    // Mine pulse anim
+    if(s.type==='mine'&&inNet&&tick%20<10){
+      ctx.strokeStyle='rgba(255,68,187,0.3)';
+      ctx.lineWidth=1;
+      ctx.beginPath(); ctx.arc(px+8,py+8,(TILE)*0.7,0,Math.PI*2); ctx.stroke();
+    }
+  }
+  ctx.globalAlpha=1;
+
+  // Emitters
+  for(let em of emitters){
+    if(!em.alive) continue;
+    let px=em.x*TILE,py=em.y*TILE;
+    let p=(Math.sin(tick*0.12)+1)/2;
+    ctx.fillStyle=`rgba(255,${40+p*30},0,${0.7+p*0.2})`;
+    ctx.fillRect(px+1,py+1,TILE-2,TILE-2);
+    ctx.shadowColor='#ff4400'; ctx.shadowBlur=10+p*8;
+    ctx.strokeStyle='#ff6600'; ctx.lineWidth=2;
+    ctx.strokeRect(px+1,py+1,TILE-2,TILE-2);
+    ctx.shadowBlur=0;
+    // HP bar
+    let hw=(em.hp/120)*(TILE-2);
+    ctx.fillStyle='#ff2200'; ctx.fillRect(px+1,py-3,hw,2);
+    ctx.fillStyle='#aa000044'; ctx.fillRect(px+1+hw,py-3,TILE-2-hw,2);
+    ctx.fillStyle='#fff'; ctx.font='10px monospace';
+    ctx.textAlign='center'; ctx.fillText('⚠',px+8,py+11);
+  }
+
+  // Projectiles
+  for(let p of projs){
+    if(p.type==='mortar'){
+      ctx.beginPath(); ctx.arc(p.x,p.y,4.5,0,Math.PI*2);
+      ctx.fillStyle='#ffaa00'; ctx.shadowColor='#ff8800'; ctx.shadowBlur=10; ctx.fill();
+    } else {
+      ctx.beginPath(); ctx.arc(p.x,p.y,2.5,0,Math.PI*2);
+      ctx.fillStyle='#ff9977'; ctx.shadowColor='#ff6644'; ctx.shadowBlur=8; ctx.fill();
+    }
+    ctx.shadowBlur=0;
+  }
+
+  // Hover ghost
+  if(mX>=0&&mY>=0&&tool!=='none'){
+    let def=DEFS[tool];
+    if(def){
+      let ok=canPlace(mX,mY,tool);
+      let px=mX*TILE,py=mY*TILE;
+      ctx.strokeStyle=ok?'rgba(0,255,120,0.9)':'rgba(255,80,80,0.9)';
+      ctx.lineWidth=2; ctx.setLineDash([3,2]);
+      ctx.strokeRect(px+1,py+1,TILE-2,TILE-2);
+      ctx.setLineDash([]);
+      ctx.beginPath();
+      ctx.arc(px+8,py+8,def.range*TILE,0,Math.PI*2);
+      ctx.strokeStyle=ok?'rgba(0,255,120,0.15)':'rgba(255,80,80,0.15)';
+      ctx.lineWidth=1; ctx.stroke();
+    }
+  }
+}
+
+function canPlace(x,y,type){
+  if(!inB(x,y)) return false;
+  if(terrain[y][x]<1||terrain[y][x]>=9) return false;
+  if(structs[`${x},${y}`]) return false;
+  if(creep[y][x]>0.4) return false;
+  let def=DEFS[type];
+  if(def.cost>energy) return false;
+  if(!nearNetwork(x,y)) return false;
+  return true;
+}
+
+// ─── INPUT ───────────────────────────────────────────────
+canvas.addEventListener('mousemove',e=>{
+  let r=canvas.getBoundingClientRect();
+  let scale=canvas.width/r.width;
+  mX=Math.floor((e.clientX-r.left)*scale/TILE);
+  mY=Math.floor((e.clientY-r.top)*scale/TILE);
+  let tip=document.getElementById('tip');
+  let k=`${mX},${mY}`, lines=[];
+  if(structs[k]){
+    let s=structs[k],def=DEFS[s.type];
+    lines.push(`<b style="color:${def.col}">${def.name}</b>`);
+    lines.push(`HP: ${Math.floor(s.hp)}/${def.hp}`);
+    lines.push(network.has(k)?'<span style="color:#0f0">● Connected</span>':'<span style="color:#f80">○ Disconnected</span>');
+  }
+  let em=emitters.find(e=>e.x===mX&&e.y===mY);
+  if(em&&em.alive) lines.push(`<b style="color:#f64">Creeper Emitter</b><br>HP: ${Math.floor(em.hp)}/120`);
+  if(inB(mX,mY)){
+    if(creep[mY][mX]>0.05) lines.push(`Creeper: ${creep[mY][mX].toFixed(1)}`);
+    lines.push(`Terrain: ${terrain[mY][mX]}`);
+    let onPad=pads.some(p=>p[0]===mX&&p[1]===mY);
+    if(onPad) lines.push(`<span style="color:#fc0">◆ Resource Pad</span>`);
+  }
+  if(lines.length){
+    tip.innerHTML=lines.join('<br>');
+    tip.style.display='block';
+    tip.style.left=(e.clientX+14)+'px';
+    tip.style.top=(e.clientY-10)+'px';
+  } else tip.style.display='none';
+});
+canvas.addEventListener('mouseleave',()=>{
+  mX=mY=-1; document.getElementById('tip').style.display='none';
+});
+
+canvas.addEventListener('click',e=>{
+  if(tool==='none') return;
+  let r=canvas.getBoundingClientRect();
+  let scale=canvas.width/r.width;
+  let cx=Math.floor((e.clientX-r.left)*scale/TILE);
+  let cy=Math.floor((e.clientY-r.top)*scale/TILE);
+  let ok=placeStruct(cx,cy,tool);
+  if(!ok){
+    let b=document.getElementById(`btn-${tool}`);
+    if(b){b.classList.add('err');setTimeout(()=>b.classList.remove('err'),300);}
+  }
+});
+
+canvas.addEventListener('contextmenu',e=>{
+  e.preventDefault();
+  let r=canvas.getBoundingClientRect();
+  let scale=canvas.width/r.width;
+  let cx=Math.floor((e.clientX-r.left)*scale/TILE);
+  let cy=Math.floor((e.clientY-r.top)*scale/TILE);
+  let k=`${cx},${cy}`;
+  if(structs[k]&&structs[k].type!=='cn'){delete structs[k];rebuildNet();}
+});
+
+document.addEventListener('keydown',e=>{
+  const map={Escape:'none',c:'collector',r:'relay',b:'blaster',t:'mortar',n:'mine'};
+  if(map[e.key]) sel(map[e.key]);
+  if(e.key==='1') setSpd(1);
+  if(e.key==='2') setSpd(2);
+  if(e.key==='3') setSpd(3);
+});
+
+function sel(t){
+  tool=t;
+  document.querySelectorAll('.tbtn').forEach(b=>{
+    if(b.id?.startsWith('sp')) return;
+    b.classList.remove('on');
+  });
+  let b=document.getElementById(`btn-${t}`); if(b) b.classList.add('on');
+}
+
+function setSpd(s){
+  spd=s;
+  ['sp1','sp2','sp3'].forEach(id=>{
+    let b=document.getElementById(id);
+    if(b) b.classList.toggle('on',id===`sp${s}`);
+  });
+}
+
+function updateHUD(){
+  document.getElementById('eVal').textContent=Math.floor(energy);
+}
+
+// ─── WIN / LOSE ───────────────────────────────────────────
+function endGame(win){
+  if(dead) return; dead=true;
+  let ov=document.getElementById('overlay');
+  document.getElementById('ovTitle').textContent=win?'✓  VICTORY':'✗  DEFEAT';
+  document.getElementById('ovBody').textContent=win
+    ?'All creeper emitters neutralized! The world is saved.'
+    :'Your Command Node was consumed by the creeper…';
+  ov.style.display='block';
+}
+
+function restart(){
+  dead=false; energy=100; tick=0; spd=1; waveNum=1; waveTimer=0;
+  structs={}; projs=[]; accT=0; network.clear();
+  document.getElementById('overlay').style.display='none';
+  document.getElementById('eVal').textContent='100';
+  document.getElementById('rVal').textContent='+0';
+  document.getElementById('wVal').textContent='1';
+  genMap();
+  structs['5,5']={x:5,y:5,type:'cn',hp:DEFS.cn.hp,timer:0};
+  rebuildNet();
+  requestAnimationFrame(t=>{lastT=t;loop(t);});
+}
+
+// ─── INIT ─────────────────────────────────────────────────
+genMap();
+structs['5,5']={x:5,y:5,type:'cn',hp:DEFS.cn.hp,timer:0};
+rebuildNet();
+document.getElementById('sp1').classList.add('on');
+requestAnimationFrame(t=>{lastT=t;loop(t);});
+</script>
+</body>
+</html>
