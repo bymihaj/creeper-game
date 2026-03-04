@@ -1,0 +1,1136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Creeper World</title>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0a0d12;
+      --fg: #e8f0f5;
+      --muted: #3a4a5a;
+      --accent: #00e5cc;
+      --danger: #ff3344;
+      --energy: #00ff88;
+      --creeper: #22ccff;
+      --card: #141a22;
+      --border: #2a3a4a;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Share Tech Mono', monospace;
+      background: var(--bg);
+      color: var(--fg);
+      min-height: 100vh;
+      overflow: hidden;
+    }
+
+    .game-container {
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+    }
+
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px 20px;
+      background: linear-gradient(180deg, var(--card) 0%, transparent 100%);
+      border-bottom: 1px solid var(--border);
+      z-index: 10;
+    }
+
+    .title {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 1.5rem;
+      font-weight: 900;
+      letter-spacing: 0.1em;
+      color: var(--accent);
+    }
+
+    .stats {
+      display: flex;
+      gap: 24px;
+    }
+
+    .stat {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .stat-label {
+      color: var(--muted);
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+    }
+
+    .stat-value {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: var(--energy);
+    }
+
+    .stat-value.danger {
+      color: var(--danger);
+    }
+
+    .game-area {
+      flex: 1;
+      display: flex;
+      position: relative;
+    }
+
+    #gameCanvas {
+      flex: 1;
+      cursor: crosshair;
+    }
+
+    .sidebar {
+      width: 200px;
+      background: var(--card);
+      border-left: 1px solid var(--border);
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .panel-title {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.15em;
+      margin-bottom: 8px;
+    }
+
+    .build-btn {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      padding: 12px;
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--fg);
+      cursor: pointer;
+      transition: all 0.2s ease;
+      text-align: left;
+    }
+
+    .build-btn:hover {
+      background: rgba(0, 229, 204, 0.1);
+      border-color: var(--accent);
+    }
+
+    .build-btn.selected {
+      background: rgba(0, 229, 204, 0.2);
+      border-color: var(--accent);
+      box-shadow: 0 0 20px rgba(0, 229, 204, 0.2);
+    }
+
+    .build-btn:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+
+    .build-name {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 0.85rem;
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+
+    .build-cost {
+      font-size: 0.7rem;
+      color: var(--energy);
+    }
+
+    .build-desc {
+      font-size: 0.65rem;
+      color: var(--muted);
+      margin-top: 4px;
+    }
+
+    .controls {
+      margin-top: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .control-btn {
+      padding: 10px;
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--fg);
+      font-family: 'Share Tech Mono', monospace;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .control-btn:hover {
+      background: rgba(255, 51, 68, 0.1);
+      border-color: var(--danger);
+    }
+
+    .minimap {
+      width: 100%;
+      height: 120px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      position: relative;
+      overflow: hidden;
+    }
+
+    #minimapCanvas {
+      width: 100%;
+      height: 100%;
+    }
+
+    .tooltip {
+      position: fixed;
+      background: var(--card);
+      border: 1px solid var(--accent);
+      padding: 8px 12px;
+      font-size: 0.75rem;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.15s ease;
+      z-index: 100;
+    }
+
+    .tooltip.visible {
+      opacity: 1;
+    }
+
+    .game-over {
+      position: fixed;
+      inset: 0;
+      background: rgba(10, 13, 18, 0.95);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.5s ease;
+    }
+
+    .game-over.visible {
+      opacity: 1;
+      pointer-events: all;
+    }
+
+    .game-over h2 {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 3rem;
+      font-weight: 900;
+      margin-bottom: 20px;
+    }
+
+    .game-over.victory h2 {
+      color: var(--energy);
+    }
+
+    .game-over.defeat h2 {
+      color: var(--danger);
+    }
+
+    .game-over p {
+      color: var(--muted);
+      margin-bottom: 30px;
+    }
+
+    .restart-btn {
+      padding: 16px 40px;
+      background: var(--accent);
+      border: none;
+      color: var(--bg);
+      font-family: 'Orbitron', sans-serif;
+      font-size: 1rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .restart-btn:hover {
+      transform: scale(1.05);
+      box-shadow: 0 0 30px rgba(0, 229, 204, 0.5);
+    }
+
+    @media (max-width: 768px) {
+      .sidebar {
+        width: 160px;
+        padding: 10px;
+      }
+      .stats {
+        gap: 12px;
+      }
+      .stat-value {
+        font-size: 1rem;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="game-container">
+    <header class="header">
+      <h1 class="title">CREEPER WORLD</h1>
+      <div class="stats">
+        <div class="stat">
+          <span class="stat-label">Energy</span>
+          <span class="stat-value" id="energyDisplay">100</span>
+        </div>
+        <div class="stat">
+          <span class="stat-label">Emitters</span>
+          <span class="stat-value danger" id="emitterDisplay">3</span>
+        </div>
+        <div class="stat">
+          <span class="stat-label">Structures</span>
+          <span class="stat-value" id="structureDisplay">1</span>
+        </div>
+      </div>
+    </header>
+    
+    <div class="game-area">
+      <canvas id="gameCanvas"></canvas>
+      <aside class="sidebar">
+        <div>
+          <div class="panel-title">Build Structures</div>
+          <button class="build-btn selected" data-type="collector">
+            <span class="build-name">Collector</span>
+            <span class="build-cost">20 Energy</span>
+            <span class="build-desc">Generates energy over time</span>
+          </button>
+          <button class="build-btn" data-type="blaster">
+            <span class="build-name">Blaster</span>
+            <span class="build-cost">40 Energy</span>
+            <span class="build-desc">Shoots and destroys creeper</span>
+          </button>
+          <button class="build-btn" data-type="relay">
+            <span class="build-name">Relay</span>
+            <span class="build-cost">15 Energy</span>
+            <span class="build-desc">Extends network range</span>
+          </button>
+          <button class="build-btn" data-type="shield">
+            <span class="build-name">Shield</span>
+            <span class="build-cost">60 Energy</span>
+            <span class="build-desc">Blocks creeper spread</span>
+          </button>
+        </div>
+        
+        <div>
+          <div class="panel-title">Map Overview</div>
+          <div class="minimap">
+            <canvas id="minimapCanvas"></canvas>
+          </div>
+        </div>
+        
+        <div class="controls">
+          <button class="control-btn" id="pauseBtn">Pause</button>
+          <button class="control-btn" id="speedBtn">Speed: 1x</button>
+        </div>
+      </aside>
+    </div>
+  </div>
+  
+  <div class="tooltip" id="tooltip"></div>
+  
+  <div class="game-over" id="gameOver">
+    <h2 id="gameOverTitle">Victory</h2>
+    <p id="gameOverText">All emitters destroyed!</p>
+    <button class="restart-btn" id="restartBtn">Play Again</button>
+  </div>
+
+  <script>
+    // Game Configuration
+    const CONFIG = {
+      GRID_SIZE: 8,
+      MAP_WIDTH: 100,
+      MAP_HEIGHT: 75,
+      CREEPER_SPREAD_RATE: 0.15,
+      CREEPER_MAX: 100,
+      NETWORK_RANGE: 12,
+      BLASTER_RANGE: 18,
+      BLASTER_DAMAGE: 3,
+      BLASTER_COOLDOWN: 30,
+      COLLECTOR_RATE: 0.08,
+      SHIELD_STRENGTH: 150
+    };
+
+    // Game State
+    let canvas, ctx, minimapCanvas, minimapCtx;
+    let gameWidth, gameHeight;
+    let gridWidth, gridHeight;
+    let terrain = [];
+    let creeper = [];
+    let structures = [];
+    let emitters = [];
+    let projectiles = [];
+    let particles = [];
+    let networkMap = [];
+    
+    let energy = 100;
+    let selectedBuild = 'collector';
+    let paused = false;
+    let speed = 1;
+    let gameOver = false;
+    let mousePos = { x: 0, y: 0 };
+    let hoveredCell = null;
+
+    const BUILDINGS = {
+      collector: { cost: 20, color: '#00ff88', name: 'Collector' },
+      blaster: { cost: 40, color: '#ff6644', name: 'Blaster' },
+      relay: { cost: 15, color: '#44aaff', name: 'Relay' },
+      shield: { cost: 60, color: '#aa88ff', name: 'Shield' },
+      base: { cost: 0, color: '#00e5cc', name: 'Base' }
+    };
+
+    // Initialize Game
+    function init() {
+      canvas = document.getElementById('gameCanvas');
+      ctx = canvas.getContext('2d');
+      minimapCanvas = document.getElementById('minimapCanvas');
+      minimapCtx = minimapCanvas.getContext('2d');
+      
+      resizeCanvas();
+      window.addEventListener('resize', resizeCanvas);
+      
+      generateTerrain();
+      placeInitialStructures();
+      setupEventListeners();
+      
+      requestAnimationFrame(gameLoop);
+    }
+
+    function resizeCanvas() {
+      const rect = canvas.parentElement.getBoundingClientRect();
+      canvas.width = rect.width - 200;
+      canvas.height = rect.height;
+      
+      minimapCanvas.width = 168;
+      minimapCanvas.height = 118;
+      
+      gameWidth = canvas.width;
+      gameHeight = canvas.height;
+      gridWidth = Math.floor(gameWidth / CONFIG.GRID_SIZE);
+      gridHeight = Math.floor(gameHeight / CONFIG.GRID_SIZE);
+    }
+
+    function generateTerrain() {
+      const width = Math.min(gridWidth, CONFIG.MAP_WIDTH);
+      const height = Math.min(gridHeight, CONFIG.MAP_HEIGHT);
+      
+      terrain = [];
+      creeper = [];
+      
+      // Generate heightmap with simplex-like noise
+      for (let y = 0; y < height; y++) {
+        terrain[y] = [];
+        creeper[y] = [];
+        for (let x = 0; x < width; x++) {
+          // Create interesting terrain
+          let h = 50;
+          h += Math.sin(x * 0.1) * 15;
+          h += Math.cos(y * 0.12) * 12;
+          h += Math.sin((x + y) * 0.08) * 10;
+          h += Math.sin(x * 0.25) * Math.cos(y * 0.25) * 8;
+          
+          // Add some random variation
+          h += (Math.random() - 0.5) * 10;
+          
+          terrain[y][x] = Math.max(0, Math.min(100, h));
+          creeper[y][x] = 0;
+        }
+      }
+    }
+
+    function placeInitialStructures() {
+      structures = [];
+      emitters = [];
+      
+      // Place base at a good starting location
+      const baseX = Math.floor(gridWidth * 0.15);
+      const baseY = Math.floor(gridHeight / 2);
+      
+      structures.push({
+        type: 'base',
+        x: baseX,
+        y: baseY,
+        health: 500,
+        maxHealth: 500,
+        connected: true
+      });
+      
+      // Place emitters
+      const emitterCount = 3;
+      for (let i = 0; i < emitterCount; i++) {
+        const ex = Math.floor(gridWidth * (0.6 + Math.random() * 0.3));
+        const ey = Math.floor(gridHeight * (0.2 + (i / emitterCount) * 0.6));
+        emitters.push({
+          x: ex,
+          y: ey,
+          health: 200,
+          maxHealth: 200,
+          rate: 0.3 + Math.random() * 0.2
+        });
+      }
+      
+      updateNetworkMap();
+    }
+
+    function updateNetworkMap() {
+      const height = Math.min(gridHeight, CONFIG.MAP_HEIGHT);
+      const width = Math.min(gridWidth, CONFIG.MAP_WIDTH);
+      
+      networkMap = [];
+      for (let y = 0; y < height; y++) {
+        networkMap[y] = [];
+        for (let x = 0; x < width; x++) {
+          networkMap[y][x] = false;
+        }
+      }
+      
+      // BFS from connected structures
+      const queue = [];
+      const visited = new Set();
+      
+      // Find all connected structures starting from base
+      const base = structures.find(s => s.type === 'base');
+      if (base) {
+        base.connected = true;
+        queue.push({ x: base.x, y: base.y });
+        visited.add(`${base.x},${base.y}`);
+      }
+      
+      while (queue.length > 0) {
+        const current = queue.shift();
+        
+        // Mark nearby cells as connected
+        for (let dy = -CONFIG.NETWORK_RANGE; dy <= CONFIG.NETWORK_RANGE; dy++) {
+          for (let dx = -CONFIG.NETWORK_RANGE; dx <= CONFIG.NETWORK_RANGE; dx++) {
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            if (dist <= CONFIG.NETWORK_RANGE) {
+              const nx = current.x + dx;
+              const ny = current.y + dy;
+              if (ny >= 0 && ny < height && nx >= 0 && nx < width) {
+                networkMap[ny][nx] = true;
+              }
+            }
+          }
+        }
+        
+        // Check for relays to extend network
+        for (const struct of structures) {
+          if (struct.type === 'relay' && !visited.has(`${struct.x},${struct.y}`)) {
+            const dist = Math.sqrt(
+              Math.pow(struct.x - current.x, 2) + 
+              Math.pow(struct.y - current.y, 2)
+            );
+            if (dist <= CONFIG.NETWORK_RANGE) {
+              struct.connected = true;
+              queue.push({ x: struct.x, y: struct.y });
+              visited.add(`${struct.x},${struct.y}`);
+            }
+          }
+        }
+      }
+    }
+
+    function setupEventListeners() {
+      canvas.addEventListener('mousemove', (e) => {
+        const rect = canvas.getBoundingClientRect();
+        mousePos.x = e.clientX - rect.left;
+        mousePos.y = e.clientY - rect.top;
+        
+        const gx = Math.floor(mousePos.x / CONFIG.GRID_SIZE);
+        const gy = Math.floor(mousePos.y / CONFIG.GRID_SIZE);
+        hoveredCell = { x: gx, y: gy };
+      });
+      
+      canvas.addEventListener('click', (e) => {
+        if (gameOver) return;
+        
+        const rect = canvas.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+        
+        const gx = Math.floor(x / CONFIG.GRID_SIZE);
+        const gy = Math.floor(y / CONFIG.GRID_SIZE);
+        
+        attemptBuild(gx, gy);
+      });
+      
+      // Build buttons
+      document.querySelectorAll('.build-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          document.querySelectorAll('.build-btn').forEach(b => b.classList.remove('selected'));
+          btn.classList.add('selected');
+          selectedBuild = btn.dataset.type;
+        });
+      });
+      
+      // Control buttons
+      document.getElementById('pauseBtn').addEventListener('click', () => {
+        paused = !paused;
+        document.getElementById('pauseBtn').textContent = paused ? 'Resume' : 'Pause';
+      });
+      
+      document.getElementById('speedBtn').addEventListener('click', () => {
+        speed = speed === 1 ? 2 : speed === 2 ? 4 : 1;
+        document.getElementById('speedBtn').textContent = `Speed: ${speed}x`;
+      });
+      
+      document.getElementById('restartBtn').addEventListener('click', restartGame);
+    }
+
+    function attemptBuild(x, y) {
+      const building = BUILDINGS[selectedBuild];
+      if (!building || energy < building.cost) return;
+      
+      // Check if valid position
+      if (x < 0 || x >= gridWidth || y < 0 || y >= gridHeight) return;
+      
+      // Check if cell is occupied
+      const occupied = structures.some(s => s.x === x && s.y === y) ||
+                      emitters.some(e => e.x === x && e.y === y);
+      if (occupied) return;
+      
+      // Check if creeper present
+      if (creeper[y] && creeper[y][x] > 10) return;
+      
+      // Check if connected to network
+      if (!networkMap[y] || !networkMap[y][x]) return;
+      
+      // Build structure
+      energy -= building.cost;
+      
+      const newStruct = {
+        type: selectedBuild,
+        x: x,
+        y: y,
+        health: selectedBuild === 'shield' ? CONFIG.SHIELD_STRENGTH : 100,
+        maxHealth: selectedBuild === 'shield' ? CONFIG.SHIELD_STRENGTH : 100,
+        cooldown: 0,
+        connected: true
+      };
+      
+      structures.push(newStruct);
+      updateNetworkMap();
+      
+      // Spawn build particles
+      spawnParticles(x * CONFIG.GRID_SIZE + CONFIG.GRID_SIZE / 2, 
+                     y * CONFIG.GRID_SIZE + CONFIG.GRID_SIZE / 2, 
+                     building.color, 10);
+    }
+
+    function spawnParticles(x, y, color, count) {
+      for (let i = 0; i < count; i++) {
+        particles.push({
+          x: x,
+          y: y,
+          vx: (Math.random() - 0.5) * 4,
+          vy: (Math.random() - 0.5) * 4,
+          life: 30 + Math.random() * 20,
+          maxLife: 50,
+          color: color,
+          size: 2 + Math.random() * 3
+        });
+      }
+    }
+
+    function updateCreeper() {
+      const height = Math.min(gridHeight, CONFIG.MAP_HEIGHT);
+      const width = Math.min(gridWidth, CONFIG.MAP_WIDTH);
+      
+      // Spawn creeper from emitters
+      for (const emitter of emitters) {
+        if (emitter.x < width && emitter.y < height && creeper[emitter.y]) {
+          creeper[emitter.y][emitter.x] = Math.min(
+            CONFIG.CREEPER_MAX, 
+            creeper[emitter.y][emitter.x] + emitter.rate
+          );
+        }
+      }
+      
+      // Flow simulation
+      const newCreeper = creeper.map(row => row ? [...row] : []);
+      
+      for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) {
+          if (!creeper[y] || creeper[y][x] < 1) continue;
+          
+          const currentLevel = creeper[y][x];
+          const currentHeight = terrain[y][x] + currentLevel;
+          
+          // Check neighbors
+          const neighbors = [
+            { dx: -1, dy: 0 },
+            { dx: 1, dy: 0 },
+            { dx: 0, dy: -1 },
+            { dx: 0, dy: 1 }
+          ];
+          
+          for (const n of neighbors) {
+            const nx = x + n.dx;
+            const ny = y + n.dy;
+            
+            if (nx < 0 || nx >= width || ny < 0 || ny >= height) continue;
+            if (!terrain[ny] || !newCreeper[ny]) continue;
+            
+            // Check for shields
+            const blocked = structures.some(s => 
+              s.type === 'shield' && s.x === nx && s.y === ny && s.health > 0
+            );
+            if (blocked) continue;
+            
+            const neighborHeight = terrain[ny][nx] + (creeper[ny][nx] || 0);
+            const diff = currentHeight - neighborHeight;
+            
+            if (diff > 0) {
+              const flow = Math.min(currentLevel, diff * CONFIG.CREEPER_SPREAD_RATE);
+              newCreeper[y][x] -= flow;
+              newCreeper[ny][nx] = (newCreeper[ny][nx] || 0) + flow;
+            }
+          }
+        }
+      }
+      
+      creeper = newCreeper;
+    }
+
+    function updateStructures() {
+      for (let i = structures.length - 1; i >= 0; i--) {
+        const struct = structures[i];
+        
+        // Check if on creeper
+        if (creeper[struct.y] && creeper[struct.y][struct.x] > 5) {
+          struct.health -= 0.5;
+        }
+        
+        if (struct.health <= 0) {
+          spawnParticles(
+            struct.x * CONFIG.GRID_SIZE + CONFIG.GRID_SIZE / 2,
+            struct.y * CONFIG.GRID_SIZE + CONFIG.GRID_SIZE / 2,
+            '#ff3344', 15
+          );
+          structures.splice(i, 1);
+          updateNetworkMap();
+          continue;
+        }
+        
+        // Structure specific updates
+        if (struct.type === 'collector' && struct.connected) {
+          energy += CONFIG.COLLECTOR_RATE;
+        }
+        
+        if (struct.type === 'blaster' && struct.connected) {
+          struct.cooldown = Math.max(0, struct.cooldown - 1);
+          
+          if (struct.cooldown <= 0) {
+            // Find nearest creeper
+            let targetX = -1, targetY = -1;
+            let maxCreeper = 0;
+            
+            for (let dy = -CONFIG.BLASTER_RANGE; dy <= CONFIG.BLASTER_RANGE; dy++) {
+              for (let dx = -CONFIG.BLASTER_RANGE; dx <= CONFIG.BLASTER_RANGE; dx++) {
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                if (dist > CONFIG.BLASTER_RANGE) continue;
+                
+                const nx = struct.x + dx;
+                const ny = struct.y + dy;
+                
+                if (ny >= 0 && ny < gridHeight && nx >= 0 && nx < gridWidth) {
+                  if (creeper[ny] && creeper[ny][nx] > maxCreeper) {
+                    maxCreeper = creeper[ny][nx];
+                    targetX = nx;
+                    targetY = ny;
+                  }
+                }
+              }
+            }
+            
+            if (targetX >= 0 && maxCreeper > 5) {
+              // Fire projectile
+              projectiles.push({
+                fromX: struct.x * CONFIG.GRID_SIZE + CONFIG.GRID_SIZE / 2,
+                fromY: struct.y * CONFIG.GRID_SIZE + CONFIG.GRID_SIZE / 2,
+                toX: targetX * CONFIG.GRID_SIZE + CONFIG.GRID_SIZE / 2,
+                toY: targetY * CONFIG.GRID_SIZE + CONFIG.GRID_SIZE / 2,
+                progress: 0,
+                damage: CONFIG.BLASTER_DAMAGE
+              });
+              struct.cooldown = CONFIG.BLASTER_COOLDOWN;
+            }
+          }
+        }
+      }
+      
+      // Update emitters
+      for (let i = emitters.length - 1; i >= 0; i--) {
+        const emitter = emitters[i];
+        
+        // Check if on blaster damage
+        if (creeper[emitter.y] && creeper[emitter.y][emitter.x] < -50) {
+          emitter.health -= 5;
+          creeper[emitter.y][emitter.x] = 0;
+        }
+        
+        if (emitter.health <= 0) {
+          spawnParticles(
+            emitter.x * CONFIG.GRID_SIZE + CONFIG.GRID_SIZE / 2,
+            emitter.y * CONFIG.GRID_SIZE + CONFIG.GRID_SIZE / 2,
+            '#00ff88', 20
+          );
+          emitters.splice(i, 1);
+        }
+      }
+    }
+
+    function updateProjectiles() {
+      for (let i = projectiles.length - 1; i >= 0; i--) {
+        const proj = projectiles[i];
+        proj.progress += 0.15;
+        
+        if (proj.progress >= 1) {
+          // Deal damage
+          const tx = Math.floor(proj.toX / CONFIG.GRID_SIZE);
+          const ty = Math.floor(proj.toY / CONFIG.GRID_SIZE);
+          
+          if (ty >= 0 && ty < gridHeight && tx >= 0 && tx < gridWidth && creeper[ty]) {
+            creeper[ty][tx] = Math.max(0, (creeper[ty][tx] || 0) - proj.damage);
+            spawnParticles(proj.toX, proj.toY, '#ffaa00', 5);
+          }
+          
+          projectiles.splice(i, 1);
+        }
+      }
+    }
+
+    function updateParticles() {
+      for (let i = particles.length - 1; i >= 0; i--) {
+        const p = particles[i];
+        p.x += p.vx;
+        p.y += p.vy;
+        p.life--;
+        
+        if (p.life <= 0) {
+          particles.splice(i, 1);
+        }
+      }
+    }
+
+    function render() {
+      // Clear canvas
+      ctx.fillStyle = '#0a0d12';
+      ctx.fillRect(0, 0, gameWidth, gameHeight);
+      
+      // Draw terrain
+      const height = Math.min(gridHeight, CONFIG.MAP_HEIGHT);
+      const width = Math.min(gridWidth, CONFIG.MAP_WIDTH);
+      
+      for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) {
+          if (!terrain[y]) continue;
+          
+          const h = terrain[y][x];
+          const px = x * CONFIG.GRID_SIZE;
+          const py = y * CONFIG.GRID_SIZE;
+          
+          // Terrain color based on height
+          const brightness = Math.floor(h * 0.8 + 20);
+          ctx.fillStyle = `rgb(${Math.floor(brightness * 0.4)}, ${Math.floor(brightness * 0.5)}, ${Math.floor(brightness * 0.55)})`;
+          ctx.fillRect(px, py, CONFIG.GRID_SIZE, CONFIG.GRID_SIZE);
+          
+          // Creeper overlay
+          if (creeper[y] && creeper[y][x] > 0) {
+            const c = Math.min(creeper[y][x], CONFIG.CREEPER_MAX) / CONFIG.CREEPER_MAX;
+            ctx.fillStyle = `rgba(34, 180, 255, ${c * 0.8})`;
+            ctx.fillRect(px, py, CONFIG.GRID_SIZE, CONFIG.GRID_SIZE);
+            
+            // Creeper glow
+            if (c > 0.3) {
+              ctx.shadowColor = '#22ccff';
+              ctx.shadowBlur = 10;
+              ctx.fillStyle = `rgba(34, 200, 255, ${c * 0.3})`;
+              ctx.fillRect(px, py, CONFIG.GRID_SIZE, CONFIG.GRID_SIZE);
+              ctx.shadowBlur = 0;
+            }
+          }
+        }
+      }
+      
+      // Draw network overlay
+      for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) {
+          if (networkMap[y] && networkMap[y][x]) {
+            const px = x * CONFIG.GRID_SIZE;
+            const py = y * CONFIG.GRID_SIZE;
+            ctx.fillStyle = 'rgba(0, 229, 204, 0.05)';
+            ctx.fillRect(px, py, CONFIG.GRID_SIZE, CONFIG.GRID_SIZE);
+          }
+        }
+      }
+      
+      // Draw emitters
+      for (const emitter of emitters) {
+        const px = emitter.x * CONFIG.GRID_SIZE;
+        const py = emitter.y * CONFIG.GRID_SIZE;
+        
+        // Emitter glow
+        ctx.shadowColor = '#ff3344';
+        ctx.shadowBlur = 15;
+        ctx.fillStyle = '#ff3344';
+        ctx.beginPath();
+        ctx.arc(px + CONFIG.GRID_SIZE / 2, py + CONFIG.GRID_SIZE / 2, CONFIG.GRID_SIZE / 2.5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.shadowBlur = 0;
+        
+        // Emitter core
+        ctx.fillStyle = '#ff8866';
+        ctx.beginPath();
+        ctx.arc(px + CONFIG.GRID_SIZE / 2, py + CONFIG.GRID_SIZE / 2, CONFIG.GRID_SIZE / 4, 0, Math.PI * 2);
+        ctx.fill();
+        
+        // Health bar
+        const healthPct = emitter.health / emitter.maxHealth;
+        ctx.fillStyle = '#331111';
+        ctx.fillRect(px, py - 4, CONFIG.GRID_SIZE, 3);
+        ctx.fillStyle = '#ff3344';
+        ctx.fillRect(px, py - 4, CONFIG.GRID_SIZE * healthPct, 3);
+      }
+      
+      // Draw structures
+      for (const struct of structures) {
+        const px = struct.x * CONFIG.GRID_SIZE;
+        const py = struct.y * CONFIG.GRID_SIZE;
+        const building = BUILDINGS[struct.type];
+        
+        // Structure glow
+        if (struct.connected) {
+          ctx.shadowColor = building.color;
+          ctx.shadowBlur = 10;
+        }
+        
+        ctx.fillStyle = struct.connected ? building.color : '#666666';
+        
+        if (struct.type === 'base') {
+          // Base - larger square
+          ctx.fillRect(px + 1, py + 1, CONFIG.GRID_SIZE - 2, CONFIG.GRID_SIZE - 2);
+          ctx.fillStyle = '#ffffff';
+          ctx.fillRect(px + 3, py + 3, CONFIG.GRID_SIZE - 6, CONFIG.GRID_SIZE - 6);
+        } else if (struct.type === 'collector') {
+          ctx.beginPath();
+          ctx.arc(px + CONFIG.GRID_SIZE / 2, py + CONFIG.GRID_SIZE / 2, CONFIG.GRID_SIZE / 3, 0, Math.PI * 2);
+          ctx.fill();
+        } else if (struct.type === 'blaster') {
+          // Diamond shape
+          ctx.beginPath();
+          ctx.moveTo(px + CONFIG.GRID_SIZE / 2, py + 2);
+          ctx.lineTo(px + CONFIG.GRID_SIZE - 2, py + CONFIG.GRID_SIZE / 2);
+          ctx.lineTo(px + CONFIG.GRID_SIZE / 2, py + CONFIG.GRID_SIZE - 2);
+          ctx.lineTo(px + 2, py + CONFIG.GRID_SIZE / 2);
+          ctx.closePath();
+          ctx.fill();
+        } else if (struct.type === 'relay') {
+          ctx.fillRect(px + 2, py + 2, CONFIG.GRID_SIZE - 4, CONFIG.GRID_SIZE - 4);
+        } else if (struct.type === 'shield') {
+          ctx.beginPath();
+          ctx.arc(px + CONFIG.GRID_SIZE / 2, py + CONFIG.GRID_SIZE / 2, CONFIG.GRID_SIZE / 2.5, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.strokeStyle = '#ffffff';
+          ctx.lineWidth = 2;
+          ctx.stroke();
+        }
+        
+        ctx.shadowBlur = 0;
+        
+        // Health bar
+        if (struct.health < struct.maxHealth) {
+          const healthPct = struct.health / struct.maxHealth;
+          ctx.fillStyle = '#111111';
+          ctx.fillRect(px, py - 4, CONFIG.GRID_SIZE, 2);
+          ctx.fillStyle = struct.connected ? '#00ff88' : '#666666';
+          ctx.fillRect(px, py - 4, CONFIG.GRID_SIZE * healthPct, 2);
+        }
+      }
+      
+      // Draw projectiles
+      for (const proj of projectiles) {
+        const x = proj.fromX + (proj.toX - proj.fromX) * proj.progress;
+        const y = proj.fromY + (proj.toY - proj.fromY) * proj.progress;
+        
+        ctx.shadowColor = '#ffaa00';
+        ctx.shadowBlur = 8;
+        ctx.fillStyle = '#ffcc00';
+        ctx.beginPath();
+        ctx.arc(x, y, 3, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.shadowBlur = 0;
+      }
+      
+      // Draw particles
+      for (const p of particles) {
+        const alpha = p.life / p.maxLife;
+        ctx.fillStyle = p.color;
+        ctx.globalAlpha = alpha;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.size * alpha, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+      
+      // Draw hover preview
+      if (hoveredCell && !gameOver) {
+        const building = BUILDINGS[selectedBuild];
+        const px = hoveredCell.x * CONFIG.GRID_SIZE;
+        const py = hoveredCell.y * CONFIG.GRID_SIZE;
+        
+        const canBuild = networkMap[hoveredCell.y] && 
+                        networkMap[hoveredCell.y][hoveredCell.x] &&
+                        energy >= building.cost &&
+                        !structures.some(s => s.x === hoveredCell.x && s.y === hoveredCell.y) &&
+                        !emitters.some(e => e.x === hoveredCell.x && e.y === hoveredCell.y) &&
+                        creeper[hoveredCell.y] && creeper[hoveredCell.y][hoveredCell.x] < 10;
+        
+        ctx.strokeStyle = canBuild ? '#00ff88' : '#ff3344';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(px + 1, py + 1, CONFIG.GRID_SIZE - 2, CONFIG.GRID_SIZE - 2);
+        
+        if (canBuild) {
+          ctx.fillStyle = building.color + '40';
+          ctx.fillRect(px + 1, py + 1, CONFIG.GRID_SIZE - 2, CONFIG.GRID_SIZE - 2);
+        }
+      }
+      
+      // Update UI
+      document.getElementById('energyDisplay').textContent = Math.floor(energy);
+      document.getElementById('emitterDisplay').textContent = emitters.length;
+      document.getElementById('structureDisplay').textContent = structures.length;
+      
+      // Update build buttons
+      document.querySelectorAll('.build-btn').forEach(btn => {
+        const type = btn.dataset.type;
+        const cost = BUILDINGS[type].cost;
+        btn.disabled = energy < cost;
+      });
+      
+      // Render minimap
+      renderMinimap();
+    }
+
+    function renderMinimap() {
+      minimapCtx.fillStyle = '#0a0d12';
+      minimapCtx.fillRect(0, 0, minimapCanvas.width, minimapCanvas.height);
+      
+      const scaleX = minimapCanvas.width / gridWidth;
+      const scaleY = minimapCanvas.height / gridHeight;
+      
+      // Draw terrain and creeper
+      for (let y = 0; y < Math.min(gridHeight, CONFIG.MAP_HEIGHT); y++) {
+        for (let x = 0; x < Math.min(gridWidth, CONFIG.MAP_WIDTH); x++) {
+          if (!terrain[y]) continue;
+          
+          const px = x * scaleX;
+          const py = y * scaleY;
+          
+          // Creeper
+          if (creeper[y] && creeper[y][x] > 5) {
+            minimapCtx.fillStyle = '#22b4ff';
+            minimapCtx.fillRect(px, py, scaleX + 1, scaleY + 1);
+          }
+        }
+      }
+      
+      // Draw emitters
+      for (const emitter of emitters) {
+        minimapCtx.fillStyle = '#ff3344';
+        minimapCtx.fillRect(
+          emitter.x * scaleX - 1, 
+          emitter.y * scaleY - 1, 
+          4, 4
+        );
+      }
+      
+      // Draw structures
+      for (const struct of structures) {
+        minimapCtx.fillStyle = BUILDINGS[struct.type].color;
+        minimapCtx.fillRect(
+          struct.x * scaleX - 1, 
+          struct.y * scaleY - 1, 
+          3, 3
+        );
+      }
+    }
+
+    function checkGameOver() {
+      // Check if base destroyed
+      const base = structures.find(s => s.type === 'base');
+      if (!base) {
+        gameOver = true;
+        const overlay = document.getElementById('gameOver');
+        overlay.classList.add('visible', 'defeat');
+        document.getElementById('gameOverTitle').textContent = 'Defeat';
+        document.getElementById('gameOverText').textContent = 'Your base was destroyed!';
+      }
+      
+      // Check if all emitters destroyed
+      if (emitters.length === 0) {
+        gameOver = true;
+        const overlay = document.getElementById('gameOver');
+        overlay.classList.add('visible', 'victory');
+        document.getElementById('gameOverTitle').textContent = 'Victory';
+        document.getElementById('gameOverText').textContent = 'All emitters destroyed!';
+      }
+    }
+
+    function restartGame() {
+      gameOver = false;
+      paused = false;
+      speed = 1;
+      energy = 100;
+      projectiles = [];
+      particles = [];
+      
+      document.getElementById('gameOver').classList.remove('visible', 'victory', 'defeat');
+      document.getElementById('pauseBtn').textContent = 'Pause';
+      document.getElementById('speedBtn').textContent = 'Speed: 1x';
+      
+      generateTerrain();
+      placeInitialStructures();
+    }
+
+    function gameLoop() {
+      if (!paused && !gameOver) {
+        for (let i = 0; i < speed; i++) {
+          updateCreeper();
+          updateStructures();
+          updateProjectiles();
+          updateParticles();
+        }
+      }
+      
+      render();
+      checkGameOver();
+      
+      requestAnimationFrame(gameLoop);
+    }
+
+    // Start the game
+    init();
+  </script>
+</body>
+</html>
