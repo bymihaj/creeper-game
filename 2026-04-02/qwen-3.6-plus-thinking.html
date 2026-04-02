@@ -1,0 +1,1091 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Creeper Defense</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #0a0a12;
+    color: #e0e0e0;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    overflow: hidden;
+    display: flex;
+    height: 100vh;
+  }
+  #sidebar {
+    width: 220px;
+    background: #12121e;
+    border-right: 1px solid #2a2a3a;
+    padding: 15px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    z-index: 10;
+  }
+  #sidebar h1 {
+    font-size: 18px;
+    color: #ff6b35;
+    text-align: center;
+    margin-bottom: 5px;
+    text-shadow: 0 0 10px rgba(255,107,53,0.5);
+  }
+  .stat-bar {
+    display: flex;
+    justify-content: space-between;
+    padding: 8px 10px;
+    background: #1a1a2e;
+    border-radius: 6px;
+    font-size: 13px;
+  }
+  .stat-bar span:first-child { color: #888; }
+  .stat-bar span:last-child { font-weight: bold; }
+  .energy-stat .val { color: #ffdd57; }
+  .creeper-stat .val { color: #ff4444; }
+  .time-stat .val { color: #66ccff; }
+  .build-section { margin-top: 5px; }
+  .build-section h3 {
+    font-size: 12px;
+    color: #666;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 8px;
+  }
+  .build-btn {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    padding: 10px 12px;
+    margin-bottom: 6px;
+    background: #1a1a2e;
+    border: 1px solid #2a2a3a;
+    border-radius: 6px;
+    color: #e0e0e0;
+    cursor: pointer;
+    font-size: 12px;
+    transition: all 0.2s;
+    text-align: left;
+  }
+  .build-btn:hover { background: #252540; border-color: #444; }
+  .build-btn.active { border-color: #ff6b35; background: #2a1a1a; }
+  .build-btn .icon {
+    width: 32px;
+    height: 32px;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    flex-shrink: 0;
+  }
+  .build-btn .info { flex: 1; }
+  .build-btn .info .name { font-weight: bold; font-size: 13px; }
+  .build-btn .info .cost { color: #ffdd57; font-size: 11px; }
+  .build-btn .info .desc { color: #777; font-size: 10px; }
+  #game-area {
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+  }
+  canvas {
+    display: block;
+    cursor: crosshair;
+  }
+  #overlay {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    pointer-events: none;
+    font-size: 12px;
+    color: rgba(255,255,255,0.5);
+  }
+  #message {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 36px;
+    font-weight: bold;
+    color: #ff6b35;
+    text-shadow: 0 0 30px rgba(255,107,53,0.8);
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.5s;
+  }
+  #message.show { opacity: 1; }
+  .tooltip {
+    position: absolute;
+    background: rgba(20,20,35,0.95);
+    border: 1px solid #3a3a5a;
+    border-radius: 6px;
+    padding: 10px 14px;
+    font-size: 12px;
+    pointer-events: none;
+    z-index: 100;
+    display: none;
+    max-width: 200px;
+  }
+  .tooltip .tt-title { font-weight: bold; color: #ff6b35; margin-bottom: 4px; }
+  .tooltip .tt-text { color: #aaa; line-height: 1.4; }
+  #speed-controls {
+    display: flex;
+    gap: 4px;
+    margin-top: auto;
+  }
+  .speed-btn {
+    flex: 1;
+    padding: 8px;
+    background: #1a1a2e;
+    border: 1px solid #2a2a3a;
+    border-radius: 4px;
+    color: #ccc;
+    cursor: pointer;
+    font-size: 12px;
+    text-align: center;
+    transition: all 0.2s;
+  }
+  .speed-btn:hover { background: #252540; }
+  .speed-btn.active { border-color: #66ccff; color: #66ccff; }
+  #instructions {
+    position: absolute;
+    bottom: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(20,20,35,0.85);
+    border: 1px solid #2a2a3a;
+    border-radius: 8px;
+    padding: 8px 16px;
+    font-size: 11px;
+    color: #888;
+    pointer-events: none;
+  }
+</style>
+</head>
+<body>
+
+<div id="sidebar">
+  <h1>⚡ CREEPER DEFENSE</h1>
+  
+  <div class="stat-bar energy-stat">
+    <span>⚡ Energy</span>
+    <span class="val" id="energy-val">100</span>
+  </div>
+  <div class="stat-bar creeper-stat">
+    <span>🔴 Creeper</span>
+    <span class="val" id="creeper-val">0%</span>
+  </div>
+  <div class="stat-bar time-stat">
+    <span>⏱ Wave</span>
+    <span class="val" id="wave-val">1</span>
+  </div>
+
+  <div class="build-section">
+    <h3>Buildings</h3>
+    
+    <button class="build-btn" data-building="emitter" onclick="selectBuilding('emitter')">
+      <div class="icon" style="background:#2a1a4a;">⚡</div>
+      <div class="info">
+        <div class="name">Emitter</div>
+        <div class="cost">Cost: 50 Energy</div>
+        <div class="desc">Generates +5 energy/sec</div>
+      </div>
+    </button>
+    
+    <button class="build-btn" data-building="turret" onclick="selectBuilding('turret')">
+      <div class="icon" style="background:#4a1a1a;">🔫</div>
+      <div class="info">
+        <div class="name">Turret</div>
+        <div class="cost">Cost: 30 Energy</div>
+        <div class="desc">Shoots creeper in range</div>
+      </div>
+    </button>
+    
+    <button class="build-btn" data-building="cannon" onclick="selectBuilding('cannon')">
+      <div class="icon" style="background:#4a3a1a;">💥</div>
+      <div class="info">
+        <div class="name">Cannon</div>
+        <div class="cost">Cost: 60 Energy</div>
+        <div class="desc">Area damage to creeper</div>
+      </div>
+    </button>
+    
+    <button class="build-btn" data-building="wall" onclick="selectBuilding('wall')">
+      <div class="icon" style="background:#1a3a2a;">🧱</div>
+      <div class="info">
+        <div class="name">Wall</div>
+        <div class="cost">Cost: 15 Energy</div>
+        <div class="desc">Blocks creeper flow</div>
+      </div>
+    </button>
+    
+    <button class="build-btn" data-building="disruptor" onclick="selectBuilding('disruptor')">
+      <div class="icon" style="background:#1a2a4a;">🌀</div>
+      <div class="info">
+        <div class="name">Disruptor</div>
+        <div class="cost">Cost: 80 Energy</div>
+        <div class="desc">Pushes creeper back</div>
+      </div>
+    </button>
+  </div>
+
+  <div class="build-section">
+    <h3>Tools</h3>
+    <button class="build-btn" data-building="dig" onclick="selectBuilding('dig')">
+      <div class="icon" style="background:#3a2a1a;">⛏️</div>
+      <div class="info">
+        <div class="name">Dig</div>
+        <div class="cost">Cost: 5 Energy</div>
+        <div class="desc">Lower terrain elevation</div>
+      </div>
+    </button>
+    <button class="build-btn" data-building="raise" onclick="selectBuilding('raise')">
+      <div class="icon" style="background:#2a2a1a;">📐</div>
+      <div class="info">
+        <div class="name">Raise</div>
+        <div class="cost">Cost: 5 Energy</div>
+        <div class="desc">Raise terrain elevation</div>
+      </div>
+    </button>
+    <button class="build-btn" data-building="demolish" onclick="selectBuilding('demolish')">
+      <div class="icon" style="background:#3a1a1a;">❌</div>
+      <div class="info">
+        <div class="name">Demolish</div>
+        <div class="cost">Refunds 50%</div>
+        <div class="desc">Remove a building</div>
+      </div>
+    </button>
+  </div>
+
+  <div id="speed-controls">
+    <button class="speed-btn" onclick="setSpeed(0)">⏸</button>
+    <button class="speed-btn active" onclick="setSpeed(1)">▶</button>
+    <button class="speed-btn" onclick="setSpeed(2)">▶▶</button>
+    <button class="speed-btn" onclick="setSpeed(3)">▶▶▶</button>
+  </div>
+</div>
+
+<div id="game-area">
+  <canvas id="gameCanvas"></canvas>
+  <div id="overlay">
+    <span id="hover-info">Hover over the map</span>
+  </div>
+  <div id="message"></div>
+  <div id="instructions">
+    Left-click to build | Right-click to deselect | Scroll to zoom | Middle-drag to pan
+  </div>
+  <div class="tooltip" id="tooltip">
+    <div class="tt-title"></div>
+    <div class="tt-text"></div>
+  </div>
+</div>
+
+<script>
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const gameArea = document.getElementById('game-area');
+
+const COLS = 80;
+const ROWS = 60;
+const CELL_SIZE = 12;
+
+let canvasWidth, canvasHeight;
+let offsetX = 0, offsetY = 0;
+let zoom = 1;
+
+let terrain = [];
+let creeper = [];
+let buildings = [];
+let energy = 100;
+let selectedBuilding = null;
+let gameSpeed = 1;
+let gameTime = 0;
+let wave = 1;
+let creeperSource = { x: 40, y: 5 };
+let gameOver = false;
+let victory = false;
+
+let mouseX = 0, mouseY = 0;
+let isPanning = false;
+let panStartX = 0, panStartY = 0;
+
+const BUILDING_COSTS = {
+  emitter: 50,
+  turret: 30,
+  cannon: 60,
+  wall: 15,
+  disruptor: 80,
+  dig: 5,
+  raise: 5,
+  demolish: 0
+};
+
+const BUILDING_INFO = {
+  emitter: { name: 'Emitter', color: '#6644aa', range: 0, desc: 'Generates energy' },
+  turret: { name: 'Turret', color: '#ff4444', range: 5, desc: 'Shoots creeper' },
+  cannon: { name: 'Cannon', color: '#ffaa00', range: 7, desc: 'Area damage' },
+  wall: { name: 'Wall', color: '#44aa66', range: 0, desc: 'Blocks flow' },
+  disruptor: { name: 'Disruptor', color: '#4488ff', range: 6, desc: 'Pushes creeper' }
+};
+
+let projectiles = [];
+let particles = [];
+let lastCreeperTick = 0;
+let lastBuildTick = 0;
+let lastEnergyTick = 0;
+
+function resize() {
+  canvasWidth = gameArea.clientWidth;
+  canvasHeight = gameArea.clientHeight;
+  canvas.width = canvasWidth;
+  canvas.height = canvasHeight;
+}
+
+window.addEventListener('resize', resize);
+resize();
+
+function noise2D(x, y) {
+  const n = Math.sin(x * 12.9898 + y * 78.233) * 43758.5453;
+  return n - Math.floor(n);
+}
+
+function smoothNoise(x, y, scale) {
+  const sx = x / scale;
+  const sy = y / scale;
+  const ix = Math.floor(sx);
+  const iy = Math.floor(sy);
+  const fx = sx - ix;
+  const fy = sy - iy;
+  
+  const a = noise2D(ix, iy);
+  const b = noise2D(ix + 1, iy);
+  const c = noise2D(ix, iy + 1);
+  const d = noise2D(ix + 1, iy + 1);
+  
+  const ux = fx * fx * (3 - 2 * fx);
+  const uy = fy * fy * (3 - 2 * fy);
+  
+  return a + (b - a) * ux + (c - a) * uy + (a - b - c + d) * ux * uy;
+}
+
+function generateTerrain() {
+  terrain = [];
+  for (let y = 0; y < ROWS; y++) {
+    terrain[y] = [];
+    for (let x = 0; x < COLS; x++) {
+      let h = smoothNoise(x, y, 15) * 0.4 +
+              smoothNoise(x, y, 8) * 0.3 +
+              smoothNoise(x, y, 4) * 0.2 +
+              smoothNoise(x, y, 2) * 0.1;
+      
+      const distFromSource = Math.sqrt((x - creeperSource.x) ** 2 + (y - creeperSource.y) ** 2);
+      if (distFromSource < 4) {
+        h *= distFromSource / 4;
+      }
+      
+      h = Math.max(0, Math.min(1, h));
+      
+      if (y < 3) h *= 0.3;
+      if (y > ROWS - 3) h = Math.max(h, 0.6);
+      
+      terrain[y][x] = h;
+    }
+  }
+}
+
+function initCreeper() {
+  creeper = [];
+  for (let y = 0; y < ROWS; y++) {
+    creeper[y] = [];
+    for (let x = 0; x < COLS; x++) {
+      creeper[y][x] = 0;
+    }
+  }
+  creeper[creeperSource.y][creeperSource.x] = 1;
+}
+
+function initBuildings() {
+  buildings = [];
+  for (let y = 0; y < ROWS; y++) {
+    buildings[y] = [];
+    for (let x = 0; x < COLS; x++) {
+      buildings[y][x] = null;
+    }
+  }
+}
+
+function init() {
+  generateTerrain();
+  initCreeper();
+  initBuildings();
+  projectiles = [];
+  particles = [];
+  energy = 100;
+  gameTime = 0;
+  wave = 1;
+  gameOver = false;
+  victory = false;
+  
+  buildings[creeperSource.y][creeperSource.x] = { type: 'source', health: 999 };
+  
+  centerXView();
+  showStartMessage();
+}
+
+function centerXView() {
+  const mapPixelW = COLS * CELL_SIZE;
+  const mapPixelH = ROWS * CELL_SIZE;
+  offsetX = (canvasWidth - mapPixelW) / 2;
+  offsetY = 30;
+}
+
+function showStartMessage() {
+  const msg = document.getElementById('message');
+  msg.textContent = 'DEFEND AGAINST THE CREEPER!';
+  msg.classList.add('show');
+  setTimeout(() => msg.classList.remove('show'), 2000);
+}
+
+function selectBuilding(type) {
+  if (selectedBuilding === type) {
+    selectedBuilding = null;
+  } else {
+    selectedBuilding = type;
+  }
+  document.querySelectorAll('.build-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.building === selectedBuilding);
+  });
+}
+
+function setSpeed(s) {
+  gameSpeed = s;
+  document.querySelectorAll('.speed-btn').forEach((btn, i) => {
+    btn.classList.toggle('active', i === s);
+  });
+}
+
+function getCellAtPixel(px, py) {
+  const wx = (px - offsetX) / zoom / CELL_SIZE;
+  const wy = (py - offsetY) / zoom / CELL_SIZE;
+  const cx = Math.floor(wx);
+  const cy = Math.floor(wy);
+  if (cx >= 0 && cx < COLS && cy >= 0 && cy < ROWS) {
+    return { x: cx, y: cy };
+  }
+  return null;
+}
+
+function canAfford(type) {
+  return energy >= BUILDING_COSTS[type];
+}
+
+function placeBuilding(cx, cy) {
+  if (gameOver) return;
+  if (!selectedBuilding) return;
+  if (cx < 0 || cx >= COLS || cy < 0 || cy >= ROWS) return;
+  
+  const type = selectedBuilding;
+  const cost = BUILDING_COSTS[type];
+  
+  if (type === 'demolish') {
+    if (buildings[cy][cx] && buildings[cy][cx].type !== 'source') {
+      const bld = buildings[cy][cx];
+      const refund = Math.floor(BUILDING_COSTS[bld.type] * 0.5);
+      energy += refund;
+      buildings[cy][cx] = null;
+      spawnParticles(cx, cy, '#ff4444', 8);
+    }
+    return;
+  }
+  
+  if (type === 'dig' || type === 'raise') {
+    if (!canAfford(type)) return;
+    if (buildings[cy][cx]) return;
+    if (cx === creeperSource.x && cy === creeperSource.y) return;
+    
+    energy -= cost;
+    if (type === 'dig') {
+      terrain[cy][cx] = Math.max(0, terrain[cy][cx] - 0.15);
+      spawnParticles(cx, cy, '#aa7744', 5);
+    } else {
+      terrain[cy][cx] = Math.min(1, terrain[cy][cx] + 0.15);
+      spawnParticles(cx, cy, '#88aa66', 5);
+    }
+    return;
+  }
+  
+  if (!canAfford(type)) return;
+  if (buildings[cy][cx]) return;
+  if (cx === creeperSource.x && cy === creeperSource.y) return;
+  if (creeper[cy][cx] > 0.5) return;
+  
+  energy -= cost;
+  buildings[cy][cx] = {
+    type: type,
+    health: type === 'wall' ? 200 : 100,
+    maxHealth: type === 'wall' ? 200 : 100,
+    fireTimer: 0,
+    angle: 0
+  };
+  spawnParticles(cx, cy, BUILDING_INFO[type].color, 6);
+}
+
+function spawnParticles(cx, cy, color, count) {
+  for (let i = 0; i < count; i++) {
+    particles.push({
+      x: (cx + 0.5) * CELL_SIZE * zoom + offsetX,
+      y: (cy + 0.5) * CELL_SIZE * zoom + offsetY,
+      vx: (Math.random() - 0.5) * 4,
+      vy: (Math.random() - 0.5) * 4,
+      life: 1,
+      color: color,
+      size: 2 + Math.random() * 3
+    });
+  }
+}
+
+function simulateCreeper(dt) {
+  const newCreeper = [];
+  for (let y = 0; y < ROWS; y++) {
+    newCreeper[y] = [];
+    for (let x = 0; x < COLS; x++) {
+      newCreeper[y][x] = creeper[y][x];
+    }
+  }
+  
+  const flowRate = 0.08 + wave * 0.01;
+  
+  for (let y = 0; y < ROWS; y++) {
+    for (let x = 0; x < COLS; x++) {
+      if (creeper[y][x] <= 0) continue;
+      
+      const neighbors = [
+        { dx: 0, dy: -1 }, { dx: 0, dy: 1 },
+        { dx: -1, dy: 0 }, { dx: 1, dy: 0 }
+      ];
+      
+      let totalFlow = 0;
+      const flows = [];
+      
+      for (const n of neighbors) {
+        const nx = x + n.dx;
+        const ny = y + n.dy;
+        if (nx < 0 || nx >= COLS || ny < 0 || ny >= ROWS) continue;
+        if (buildings[ny][nx] && buildings[ny][nx].type === 'wall') continue;
+        
+        const heightDiff = terrain[y][x] - terrain[ny][nx];
+        const creeperDiff = creeper[y][x] - creeper[ny][nx];
+        const flow = Math.max(0, (heightDiff * 0.5 + creeperDiff * 0.3)) * flowRate;
+        
+        flows.push({ nx, ny, flow });
+        totalFlow += flow;
+      }
+      
+      for (const f of flows) {
+        if (totalFlow > 0) {
+          const amount = creeper[y][x] * (f.flow / totalFlow) * dt * 0.5;
+          newCreeper[f.ny][f.nx] += amount;
+          newCreeper[y][x] -= amount;
+        }
+      }
+      
+      newCreeper[y][x] = Math.max(0, newCreeper[y][x]);
+    }
+  }
+  
+  for (let y = 0; y < ROWS; y++) {
+    for (let x = 0; x < COLS; x++) {
+      creeper[y][x] = Math.max(0, Math.min(1, newCreeper[y][x]));
+    }
+  }
+  
+  creeper[creeperSource.y][creeperSource.x] = 1;
+}
+
+function simulateBuildings(dt) {
+  for (let y = 0; y < ROWS; y++) {
+    for (let x = 0; x < COLS; x++) {
+      const bld = buildings[y][x];
+      if (!bld || bld.type === 'source') continue;
+      
+      if (creeper[y][x] > 0) {
+        bld.health -= creeper[y][x] * dt * 20;
+        if (bld.health <= 0) {
+          spawnParticles(x, y, BUILDING_INFO[bld.type]?.color || '#888', 10);
+          buildings[y][x] = null;
+          continue;
+        }
+      }
+      
+      if (bld.type === 'turret' || bld.type === 'cannon') {
+        bld.fireTimer += dt;
+        const fireRate = bld.type === 'cannon' ? 0.02 : 0.06;
+        const range = BUILDING_INFO[bld.type].range;
+        
+        if (bld.fireTimer >= fireRate) {
+          bld.fireTimer = 0;
+          
+          let targetCx = -1, targetCy = -1;
+          let maxCreeper = 0;
+          
+          for (let dy = -range; dy <= range; dy++) {
+            for (let dx = -range; dx <= range; dx++) {
+              const nx = x + dx;
+              const ny = y + dy;
+              if (nx < 0 || nx >= COLS || ny < 0 || ny >= ROWS) continue;
+              if (creeper[ny][nx] > maxCreeper && creeper[ny][nx] > 0.05) {
+                maxCreeper = creeper[ny][nx];
+                targetCx = nx;
+                targetCy = ny;
+              }
+            }
+          }
+          
+          if (targetCx >= 0) {
+            bld.angle = Math.atan2(targetCy - y, targetCx - x);
+            projectiles.push({
+              sx: x, sy: y,
+              tx: targetCx, ty: targetCy,
+              progress: 0,
+              speed: 0.15,
+              type: bld.type,
+              damage: bld.type === 'cannon' ? 0.4 : 0.15
+            });
+          }
+        }
+      }
+      
+      if (bld.type === 'disruptor') {
+        bld.fireTimer += dt;
+        const range = BUILDING_INFO.disruptor.range;
+        if (bld.fireTimer >= 0.04) {
+          bld.fireTimer = 0;
+          for (let dy = -range; dy <= range; dy++) {
+            for (let dx = -range; dx <= range; dx++) {
+              const nx = x + dx;
+              const ny = y + dy;
+              if (nx < 0 || nx >= COLS || ny < 0 || ny >= ROWS) continue;
+              const dist = Math.sqrt(dx * dx + dy * dy);
+              if (dist <= range && creeper[ny][nx] > 0) {
+                creeper[ny][nx] *= 0.92;
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+function simulateProjectiles(dt) {
+  for (let i = projectiles.length - 1; i >= 0; i--) {
+    const p = projectiles[i];
+    p.progress += p.speed * dt;
+    
+    if (p.progress >= 1) {
+      if (p.type === 'cannon') {
+        const range = 2;
+        for (let dy = -range; dy <= range; dy++) {
+          for (let dx = -range; dx <= range; dx++) {
+            const nx = p.tx + dx;
+            const ny = p.ty + dy;
+            if (nx < 0 || nx >= COLS || ny < 0 || ny >= ROWS) continue;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            if (dist <= range) {
+              creeper[ny][nx] = Math.max(0, creeper[ny][nx] - p.damage * (1 - dist / range));
+            }
+          }
+        }
+        spawnParticles(p.tx, p.ty, '#ffaa00', 8);
+      } else {
+        creeper[p.ty][p.tx] = Math.max(0, creeper[p.ty][p.tx] - p.damage);
+        spawnParticles(p.tx, p.ty, '#ff4444', 3);
+      }
+      projectiles.splice(i, 1);
+    }
+  }
+}
+
+function simulateParticles(dt) {
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const p = particles[i];
+    p.x += p.vx;
+    p.y += p.vy;
+    p.life -= dt * 2;
+    if (p.life <= 0) {
+      particles.splice(i, 1);
+    }
+  }
+}
+
+function updateEnergy(dt) {
+  let production = 0;
+  let consumption = 0;
+  
+  for (let y = 0; y < ROWS; y++) {
+    for (let x = 0; x < COLS; x++) {
+      const bld = buildings[y][x];
+      if (!bld || bld.type === 'source') continue;
+      if (bld.type === 'emitter') {
+        production += 5 * dt;
+      } else {
+        consumption += 1 * dt;
+      }
+    }
+  }
+  
+  energy += production - consumption;
+  energy = Math.max(0, energy);
+}
+
+function updateWave() {
+  const newWave = Math.floor(gameTime / 30) + 1;
+  if (newWave > wave) {
+    wave = newWave;
+    const msg = document.getElementById('message');
+    msg.textContent = `WAVE ${wave}`;
+    msg.classList.add('show');
+    setTimeout(() => msg.classList.remove('show'), 1500);
+    
+    for (let i = 0; i < wave * 3; i++) {
+      const sx = creeperSource.x + Math.floor((Math.random() - 0.5) * 6);
+      const sy = creeperSource.y + Math.floor((Math.random() - 0.5) * 4);
+      if (sx >= 0 && sx < COLS && sy >= 0 && sy < ROWS) {
+        creeper[sy][sx] = Math.max(creeper[sy][sx], 0.5);
+      }
+    }
+  }
+}
+
+function checkGameState() {
+  let totalCreeper = 0;
+  let cellCount = 0;
+  for (let y = 0; y < ROWS; y++) {
+    for (let x = 0; x < COLS; x++) {
+      if (creeper[y][x] > 0.01) totalCreeper++;
+      cellCount++;
+    }
+  }
+  
+  const pct = (totalCreeper / cellCount) * 100;
+  document.getElementById('creeper-val').textContent = pct.toFixed(1) + '%';
+  document.getElementById('creeper-val').style.color = pct > 30 ? '#ff4444' : pct > 15 ? '#ffaa00' : '#66cc66';
+  
+  if (pct > 60) {
+    gameOver = true;
+    const msg = document.getElementById('message');
+    msg.textContent = 'GAME OVER - CREEPER WINS!';
+    msg.style.color = '#ff2222';
+    msg.classList.add('show');
+    setTimeout(() => {
+      msg.classList.remove('show');
+      setTimeout(() => {
+        msg.style.color = '#ff6b35';
+      }, 500);
+    }, 3000);
+  }
+  
+  if (gameTime > 180 && pct < 5) {
+    victory = true;
+    gameOver = true;
+    const msg = document.getElementById('message');
+    msg.textContent = 'VICTORY! CREEPER DEFEATED!';
+    msg.style.color = '#66ff66';
+    msg.classList.add('show');
+  }
+}
+
+function updateUI() {
+  document.getElementById('energy-val').textContent = Math.floor(energy);
+  document.getElementById('wave-val').textContent = wave;
+}
+
+function getTerrainColor(h) {
+  if (h < 0.2) return `rgb(${30 + h * 100}, ${40 + h * 80}, ${60 + h * 60})`;
+  if (h < 0.4) return `rgb(${50 + h * 80}, ${70 + h * 60}, ${50 + h * 40})`;
+  if (h < 0.6) return `rgb(${80 + h * 60}, ${90 + h * 50}, ${60 + h * 30})`;
+  if (h < 0.8) return `rgb(${100 + h * 40}, ${80 + h * 30}, ${50 + h * 20})`;
+  return `rgb(${120 + h * 30}, ${100 + h * 20}, ${70 + h * 10})`;
+}
+
+function getCreeperColor(amount) {
+  if (amount <= 0) return null;
+  const r = Math.floor(180 + amount * 75);
+  const g = Math.floor(20 + amount * 30);
+  const b = Math.floor(40 + amount * 40);
+  return `rgba(${r}, ${g}, ${b}, ${0.3 + amount * 0.7})`;
+}
+
+function render() {
+  ctx.fillStyle = '#0a0a12';
+  ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+  
+  ctx.save();
+  ctx.translate(offsetX, offsetY);
+  ctx.scale(zoom, zoom);
+  
+  const startCol = Math.max(0, Math.floor(-offsetX / zoom / CELL_SIZE));
+  const endCol = Math.min(COLS, Math.ceil((canvasWidth - offsetX / zoom) / CELL_SIZE));
+  const startRow = Math.max(0, Math.floor(-offsetY / zoom / CELL_SIZE));
+  const endRow = Math.min(ROWS, Math.ceil((canvasHeight - offsetY / zoom) / CELL_SIZE));
+  
+  for (let y = startRow; y < endRow; y++) {
+    for (let x = startCol; x < endCol; x++) {
+      const px = x * CELL_SIZE;
+      const py = y * CELL_SIZE;
+      
+      ctx.fillStyle = getTerrainColor(terrain[y][x]);
+      ctx.fillRect(px, py, CELL_SIZE, CELL_SIZE);
+      
+      const cAmount = creeper[y][x];
+      if (cAmount > 0.01) {
+        ctx.fillStyle = getCreeperColor(cAmount);
+        ctx.fillRect(px, py, CELL_SIZE, CELL_SIZE);
+        
+        if (cAmount > 0.3) {
+          ctx.fillStyle = `rgba(255, ${Math.floor(50 + cAmount * 50)}, ${Math.floor(80 + cAmount * 60)}, ${cAmount * 0.3})`;
+          ctx.beginPath();
+          ctx.arc(px + CELL_SIZE / 2, py + CELL_SIZE / 2, CELL_SIZE * cAmount * 0.5, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+      
+      const bld = buildings[y][x];
+      if (bld) {
+        if (bld.type === 'source') {
+          ctx.fillStyle = '#ff2200';
+          ctx.beginPath();
+          ctx.arc(px + CELL_SIZE / 2, py + CELL_SIZE / 2, CELL_SIZE * 0.6, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = '#ff6644';
+          ctx.beginPath();
+          ctx.arc(px + CELL_SIZE / 2, py + CELL_SIZE / 2, CELL_SIZE * 0.35, 0, Math.PI * 2);
+          ctx.fill();
+          
+          const pulse = Math.sin(gameTime * 3) * 0.2 + 0.8;
+          ctx.strokeStyle = `rgba(255, 50, 0, ${pulse})`;
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.arc(px + CELL_SIZE / 2, py + CELL_SIZE / 2, CELL_SIZE * (0.6 + Math.sin(gameTime * 2) * 0.15), 0, Math.PI * 2);
+          ctx.stroke();
+        } else {
+          const info = BUILDING_INFO[bld.type];
+          const hpRatio = bld.health / bld.maxHealth;
+          
+          ctx.fillStyle = info.color;
+          if (bld.type === 'wall') {
+            ctx.fillRect(px + 1, py + 1, CELL_SIZE - 2, CELL_SIZE - 2);
+            ctx.strokeStyle = '#2a2a3a';
+            ctx.lineWidth = 1;
+            ctx.strokeRect(px + 1, py + 1, CELL_SIZE - 2, CELL_SIZE - 2);
+            ctx.fillStyle = `rgba(255,255,255,${0.1 + hpRatio * 0.2})`;
+            ctx.fillRect(px + 2, py + 2, CELL_SIZE - 4, CELL_SIZE - 4);
+          } else {
+            ctx.beginPath();
+            ctx.arc(px + CELL_SIZE / 2, py + CELL_SIZE / 2, CELL_SIZE * 0.4, 0, Math.PI * 2);
+            ctx.fill();
+            
+            if (bld.type === 'turret' || bld.type === 'cannon') {
+              ctx.strokeStyle = info.color;
+              ctx.lineWidth = 2;
+              ctx.beginPath();
+              ctx.moveTo(px + CELL_SIZE / 2, py + CELL_SIZE / 2);
+              ctx.lineTo(
+                px + CELL_SIZE / 2 + Math.cos(bld.angle) * CELL_SIZE * 0.5,
+                py + CELL_SIZE / 2 + Math.sin(bld.angle) * CELL_SIZE * 0.5
+              );
+              ctx.stroke();
+            }
+            
+            if (bld.type === 'emitter') {
+              ctx.fillStyle = '#ffdd57';
+              ctx.beginPath();
+              ctx.arc(px + CELL_SIZE / 2, py + CELL_SIZE / 2, CELL_SIZE * 0.15, 0, Math.PI * 2);
+              ctx.fill();
+            }
+            
+            if (bld.type === 'disruptor') {
+              ctx.strokeStyle = `rgba(68, 136, 255, ${0.3 + Math.sin(gameTime * 4) * 0.2})`;
+              ctx.lineWidth = 1;
+              const range = BUILDING_INFO.disruptor.range;
+              ctx.beginPath();
+              ctx.arc(px + CELL_SIZE / 2, py + CELL_SIZE / 2, CELL_SIZE * range * 0.8, 0, Math.PI * 2);
+              ctx.stroke();
+            }
+            
+            if (hpRatio < 1) {
+              ctx.fillStyle = 'rgba(255,0,0,0.5)';
+              ctx.fillRect(px, py + CELL_SIZE - 2, CELL_SIZE, 2);
+              ctx.fillStyle = 'rgba(0,255,0,0.7)';
+              ctx.fillRect(px, py + CELL_SIZE - 2, CELL_SIZE * hpRatio, 2);
+            }
+          }
+        }
+      }
+    }
+  }
+  
+  if (selectedBuilding && selectedBuilding !== 'demolish') {
+    const cell = getCellAtPixel(mouseX, mouseY);
+    if (cell) {
+      const px = cell.x * CELL_SIZE;
+      const py = cell.y * CELL_SIZE;
+      ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(px, py, CELL_SIZE, CELL_SIZE);
+      
+      const range = BUILDING_INFO[selectedBuilding]?.range;
+      if (range > 0) {
+        ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+        ctx.beginPath();
+        ctx.arc(px + CELL_SIZE / 2, py + CELL_SIZE / 2, CELL_SIZE * range, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+    }
+  }
+  
+  for (const p of projectiles) {
+    const cx = (p.sx + (p.tx - p.sx) * p.progress) * CELL_SIZE + CELL_SIZE / 2;
+    const cy = (p.sy + (p.ty - p.sy) * p.progress) * CELL_SIZE + CELL_SIZE / 2;
+    
+    ctx.fillStyle = p.type === 'cannon' ? '#ffaa00' : '#ff4444';
+    ctx.beginPath();
+    ctx.arc(cx, cy, p.type === 'cannon' ? 4 : 2.5, 0, Math.PI * 2);
+    ctx.fill();
+    
+    ctx.fillStyle = p.type === 'cannon' ? 'rgba(255,170,0,0.3)' : 'rgba(255,68,68,0.3)';
+    ctx.beginPath();
+    ctx.arc(cx, cy, p.type === 'cannon' ? 7 : 5, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  
+  for (const p of particles) {
+    ctx.globalAlpha = p.life;
+    ctx.fillStyle = p.color;
+    ctx.beginPath();
+    ctx.arc(p.x / zoom, p.y / zoom, p.size / zoom, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+  
+  ctx.restore();
+}
+
+let lastTime = performance.now();
+
+function gameLoop(timestamp) {
+  const rawDt = Math.min((timestamp - lastTime) / 1000, 0.05);
+  lastTime = timestamp;
+  
+  if (!gameOver) {
+    const dt = rawDt * gameSpeed;
+    gameTime += dt;
+    
+    if (gameSpeed > 0) {
+      simulateCreeper(dt);
+      simulateBuildings(dt);
+      simulateProjectiles(dt);
+      updateEnergy(dt);
+      updateWave();
+      checkGameState();
+    }
+  }
+  
+  simulateParticles(rawDt);
+  updateUI();
+  render();
+  
+  requestAnimationFrame(gameLoop);
+}
+
+canvas.addEventListener('mousedown', (e) => {
+  if (e.button === 1) {
+    isPanning = true;
+    panStartX = e.clientX - offsetX;
+    panStartY = e.clientY - offsetY;
+    e.preventDefault();
+    return;
+  }
+  if (e.button === 0) {
+    const cell = getCellAtPixel(e.offsetX, e.offsetY);
+    if (cell) {
+      placeBuilding(cell.x, cell.y);
+    }
+  }
+});
+
+canvas.addEventListener('mousemove', (e) => {
+  mouseX = e.offsetX;
+  mouseY = e.offsetY;
+  
+  if (isPanning) {
+    offsetX = e.clientX - panStartX;
+    offsetY = e.clientY - panStartY;
+    return;
+  }
+  
+  const cell = getCellAtPixel(e.offsetX, e.offsetY);
+  if (cell) {
+    const tH = terrain[cell.y][cell.x];
+    const cA = creeper[cell.y][cell.x];
+    const bld = buildings[cell.y][cell.x];
+    let bldInfo = '';
+    if (bld) {
+      const info = BUILDING_INFO[bld.type] || { name: 'Source' };
+      bldInfo = `<br>Building: ${info.name}`;
+      if (bld.type !== 'source') bldInfo += `<br>Health: ${Math.floor(bld.health)}/${bld.maxHealth}`;
+    }
+    document.getElementById('hover-info').textContent = 
+      `Pos: ${cell.x},${cell.y} | Terrain: ${tH.toFixed(2)} | Creeper: ${cA.toFixed(2)}${bldInfo}`;
+  }
+});
+
+canvas.addEventListener('mouseup', (e) => {
+  if (e.button === 1) isPanning = false;
+});
+
+canvas.addEventListener('contextmenu', (e) => {
+  e.preventDefault();
+  selectedBuilding = null;
+  document.querySelectorAll('.build-btn').forEach(btn => btn.classList.remove('active'));
+});
+
+canvas.addEventListener('wheel', (e) => {
+  e.preventDefault();
+  const oldZoom = zoom;
+  if (e.deltaY < 0) {
+    zoom = Math.min(3, zoom * 1.1);
+  } else {
+    zoom = Math.max(0.3, zoom / 1.1);
+  }
+  const rect = canvas.getBoundingClientRect();
+  const mx = e.clientX - rect.left;
+  const my = e.clientY - rect.top;
+  offsetX = mx - (mx - offsetX) * (zoom / oldZoom);
+  offsetY = my - (my - offsetY) * (zoom / oldZoom);
+});
+
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    selectedBuilding = null;
+    document.querySelectorAll('.build-btn').forEach(btn => btn.classList.remove('active'));
+  }
+  if (e.key === '1') selectBuilding('emitter');
+  if (e.key === '2') selectBuilding('turret');
+  if (e.key === '3') selectBuilding('cannon');
+  if (e.key === '4') selectBuilding('wall');
+  if (e.key === '5') selectBuilding('disruptor');
+  if (e.key === '6') selectBuilding('dig');
+  if (e.key === '7') selectBuilding('raise');
+  if (e.key === '8') selectBuilding('demolish');
+  if (e.key === ' ') { e.preventDefault(); setSpeed(gameSpeed === 0 ? 1 : 0); }
+  if (e.key === 'r' || e.key === 'R') init();
+});
+
+init();
+requestAnimationFrame(gameLoop);
+</script>
+</body>
+</html>
+
