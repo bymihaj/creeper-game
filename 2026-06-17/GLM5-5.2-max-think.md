@@ -4,8 +4,8 @@
 **Options:**  Max, Deep Think<br>
 **Line of code:**  1683<br>
 
-[Code](https://github.com/bymihaj/creeper-game/blob/main/2016-06-17/GLM5-5.2-max-think.html)<br>
-[Play](https://bymihaj.github.io/creeper-game/2016-06-17/GLM5-5.2-max-think.html)<br>
+[Code](https://github.com/bymihaj/creeper-game/blob/main/2026-06-17/GLM5-5.2-max-think.html)<br>
+[Play](https://bymihaj.github.io/creeper-game/2026-06-17/GLM5-5.2-max-think.html)<br>
 [Shared chat](https://chat.z.ai/s/e24e0652-0e5b-4e11-a8b4-a7dac3b1a3c1)
 
 **Game review:**
